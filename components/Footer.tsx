@@ -45,9 +45,9 @@ export default function Footer() {
             <FooterCol
               title="Open Source"
               links={[
-                { href: "https://github.com/verge402/verge", label: "GitHub" },
-                { href: "https://github.com/verge402/verge/tree/main/sdk/express", label: "@verge/express" },
-                { href: "https://github.com/verge402/verge/releases", label: "Releases" },
+                { href: "https://github.com/vergex402/verge", label: "GitHub" },
+                { href: "https://github.com/vergex402/verge/tree/main/sdk/express", label: "@vergex402/express" },
+                { href: "https://github.com/vergex402/verge/releases", label: "Releases" },
               ]}
             />
             <FooterCol

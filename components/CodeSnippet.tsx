@@ -56,7 +56,7 @@ export default function CodeSnippet() {
                   <span className="text-emerald-400">&quot;express&quot;</span>;{"\n"}
                   <span className="text-pink-400">import</span> {"{ paywall }"}{" "}
                   <span className="text-pink-400">from</span>{" "}
-                  <span className="text-emerald-400">&quot;@verge/express&quot;</span>;{"\n"}
+                  <span className="text-emerald-400">&quot;@vergex402/express&quot;</span>;{"\n"}
                   {"\n"}
                   <span className="text-pink-400">const</span> app ={" "}
                   <span className="text-emerald-400">express</span>();{"\n"}

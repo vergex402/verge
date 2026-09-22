@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
 [![Robinhood Chain](https://img.shields.io/badge/Robinhood_Chain-mainnet-10b981?style=flat-square)](https://robinhood.com/us/en/support/articles/robinhood-chain-mainnet/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=nextdotjs)](https://nextjs.org)
-[![Stars](https://img.shields.io/badge/stars-24-yellow?style=flat-square&logo=github)](https://github.com/verge402/verge/stargazers)
+[![Stars](https://img.shields.io/badge/stars-24-yellow?style=flat-square&logo=github)](https://github.com/vergex402/verge/stargazers)
 [![Status](https://img.shields.io/badge/status-LIVE-10b981?style=flat-square)]()
 [![$VERGE](https://img.shields.io/badge/$VERGE-Pons-10b981?style=flat-square)](https://ponsralph.xyz)
 
@@ -26,7 +26,7 @@
 A drop-in middleware that lets any HTTP endpoint speak the **HTTP 402 "Payment Required"** protocol — agents pay USDG on Robinhood Chain, your endpoint unlocks, ~400ms end-to-end.
 
 ```ts
-import { paywall } from "@verge/express";
+import { paywall } from "@vergex402/express";
 
 app.use("/api/premium", paywall({
   amount: 0.001,                       // USDG
@@ -54,8 +54,8 @@ x402 is interesting on every chain. Robinhood Chain gives Verge a fast EVM settl
 verge/
 ├── app/                          # Next.js 16 landing + /app + /docs + wallet APIs
 ├── components/                   # React components (Hero, ScrollCube, Pricing, …)
-├── sdk/express/                  # @verge/express — npm-publishable middleware
-├── sdk/hono/                     # @verge/hono — npm-publishable Hono adapter
+├── sdk/express/                  # @vergex402/express — npm-publishable middleware
+├── sdk/hono/                     # @vergex402/hono — npm-publishable Hono adapter
 ├── public/                       # banner.jpg + avatar.jpg (design by @hellokent)
 ├── BRAND_BRIEF.md                # Brand guidelines + visual world
 └── README.md
@@ -101,7 +101,7 @@ Self-hosted means **you** run the facilitator on **your** Robinhood Chain RPC �
 - [x] x402 challenge / replay flow
 - [x] On-chain USDG Transfer verification on Robinhood Chain
 - [x] Express middleware
-- [x] Hono adapter (`@verge/hono`)
+- [x] Hono adapter (`@vergex402/hono`)
 - [x] Wallet-authenticated developer gateway (Reown)
 - [x] Verified endpoint directory + machine-readable `/api/catalog`
 - [x] Replay-safe payment SDK with pluggable durable nonce store

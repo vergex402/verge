@@ -1,5 +1,5 @@
 {
-  "name": "@verge/express",
+  "name": "@vergex402/express",
   "version": "0.1.0",
   "description": "Express middleware for HTTP 402 USDG micropayments on Robinhood Chain via Verge.",
   "type": "module",

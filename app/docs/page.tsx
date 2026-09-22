@@ -20,13 +20,13 @@ export default function Docs() {
         <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
           1. Install
         </h2>
-        <pre className="code-block">npm install @verge/express</pre>
+        <pre className="code-block">npm install @vergex402/express</pre>
 
         <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
           2. Drop in the middleware
         </h2>
         <pre className="code-block">{`import express from "express";
-import { paywall } from "@verge/express";
+import { paywall } from "@vergex402/express";
 
 const app = express();
 
@@ -90,11 +90,11 @@ HTTP/1.1 200 OK
           <li>
             <a
               className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
-              href="https://github.com/verge402/verge/tree/main/sdk/express"
+              href="https://github.com/vergex402/verge/tree/main/sdk/express"
               target="_blank"
               rel="noopener"
             >
-              github.com/verge402/verge
+              github.com/vergex402/verge
             </a>{" "}
             — SDK source
           </li>

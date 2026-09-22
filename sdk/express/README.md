@@ -1,16 +1,16 @@
-# @verge/express
+# @vergex402/express
 
-Express middleware for HTTP 402 USDG micropayments on Robinhood Chain via Verge.
+Express middleware for HTTP 402 USDG micropayments on **Robinhood Chain** (chain ID `4663`).
 
 ```bash
-npm install @verge/express
+npm install @vergex402/express
 ```
 
 ## Quick start
 
 ```ts
 import express from "express";
-import { paywall } from "@verge/express";
+import { paywall } from "@vergex402/express";
 
 const app = express();
 

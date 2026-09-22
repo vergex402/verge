@@ -29,7 +29,7 @@ export default function NavBar() {
               Docs
             </a>
             <a
-              href="https://github.com/verge402/verge"
+              href="https://github.com/vergex402/verge"
               target="_blank"
               rel="noopener"
               className="text-sm font-medium text-gray-300 transition-colors hover:text-white"

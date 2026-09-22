@@ -1,18 +1,18 @@
-# @verge/hono
+# @vergex402/hono
 
 Hono middleware for HTTP 402 USDG micropayments on **Robinhood Chain** (chain ID `4663`).
 
 ## Install
 
 ```bash
-npm install @verge/hono hono
+npm install @vergex402/hono hono
 ```
 
 ## Usage
 
 ```ts
 import { Hono } from "hono";
-import { paywall } from "@verge/hono";
+import { paywall } from "@vergex402/hono";
 
 const app = new Hono();
 
