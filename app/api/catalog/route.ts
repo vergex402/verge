@@ -30,6 +30,10 @@ export async function GET(_req: NextRequest) {
         id: "verge-marketplace", name: "Verified endpoint directory", method: "GET", url: `${baseUrl}/api/marketplace`,
         paymentRequired: false, description: "Lists public endpoint registrations that passed Verge health verification.",
       },
+      {
+        id: "verge-key-verify", name: "API key introspection", method: "POST", url: `${baseUrl}/api/keys/verify`,
+        paymentRequired: false, description: "Third-party servers can verify a Verge-issued API key (validity, quota, revocation) without consuming a request.",
+      },
       ...listings,
     ],
   }, { headers: { "Cache-Control": "public, max-age=60" } });

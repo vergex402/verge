@@ -107,6 +107,25 @@ HTTP/1.1 200 OK
 });`}</pre>
 
         <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
+          Gate your own endpoint with a Verge API key
+        </h2>
+        <p className="ink-mid mb-4 leading-[1.55]">
+          Wallet holders can generate a metered API key from the{" "}
+          <a href="/app" className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]">gateway</a>.
+          Any server — yours included — can verify one of these keys server-side before granting access,
+          without touching USDG or the SDK at all:
+        </p>
+        <pre className="code-block">{`curl -X POST https://vergesnowy.dev/api/keys/verify \\
+  -H "content-type: application/json" \\
+  -d '{"key": "vg_live_..."}'
+
+{ "ok": true, "wallet": "0xabc...", "remaining": 998, "limit": 1000 }`}</pre>
+        <p className="ink-mid mt-4 leading-[1.55]">
+          Introspection is free and does not consume the caller&apos;s quota — it only reports whether the key
+          is valid, revoked, or exhausted for the day. Revoked or unknown keys respond with HTTP 401.
+        </p>
+
+        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
           Reference
         </h2>
         <ul className="space-y-2 ink-mid">
