@@ -1,0 +1,289 @@
+@import url("https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300;400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  /* ── verge tokens — matching mrdn.finance exactly ── */
+  --color-bg:        #171719;
+  --color-bg-soft:   #171719;
+  --color-bg-2:      #1B1B1C;
+  --color-bg-card:   #1B1B1C;
+  --color-bg-elev:   #222224;
+
+  --color-ink:       #ffffff;
+  --color-ink-mid:   #9ca3af; /* gray-400 */
+  --color-ink-dim:   #6b7280; /* gray-500 */
+
+  --color-line:      #2a2a2e;
+  --color-line-soft: #222226;
+  --color-line-bright: #3a3a3e;
+
+  /* Accent — emerald (matching mrdn) */
+  --color-accent:        #34d399; /* emerald-400 */
+  --color-accent-soft:   rgba(52, 211, 153, 0.14);
+  --color-accent-strong: #10b981; /* emerald-500 */
+
+  /* Status tones */
+  --color-lime:   #34d399;
+  --color-amber:  #fbbf24;
+  --color-magenta: #f472b6;
+  --color-pink:   #f472b6;
+  --color-violet: #a78bfa;
+  --color-cyan:   var(--color-accent);
+  --color-electric: var(--color-accent);
+  --color-blue:   #60a5fa;
+  --color-green:  var(--color-accent);
+
+  --color-ok:    var(--color-accent);
+  --color-warn:  var(--color-amber);
+  --color-fail:  #ef4444;
+
+  /* Typography — Funnel Display like mrdn */
+  --font-sans: "Funnel Display", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-display: "Funnel Display", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html, body {
+  background: var(--color-bg);
+}
+
+::selection { background: var(--color-accent); color: black; }
+
+/* Keyframes */
+@keyframes shimmer-slide   { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+@keyframes pulse-dot-ring  { 0% { transform: scale(0.85); opacity: 1 } 100% { transform: scale(2.4); opacity: 0 } }
+@keyframes reveal-up       { from { opacity: 0; transform: translateY(30px) } to { opacity: 1; transform: none } }
+@keyframes ticker-x        { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+@keyframes ticker-x-rev    { from { transform: translateX(-50%) } to { transform: translateX(0) } }
+@keyframes blink-caret     { 0%, 50% { opacity: 1 } 51%, 100% { opacity: 0 } }
+@keyframes type-in         { from { opacity: 0; transform: translateY(2px) } to { opacity: 1; transform: none } }
+@keyframes float-y         { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
+@keyframes bounce          { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-25%) } }
+
+/* Banner showcase animations */
+@keyframes banner-zoom     { 0% { transform: scale(1) } 50% { transform: scale(1.04) } 100% { transform: scale(1) } }
+@keyframes banner-twinkle  { 0%, 100% { opacity: 0; transform: scale(0.5) } 50% { opacity: 1; transform: scale(1.2) } }
+@keyframes banner-glow     { 0%, 100% { opacity: 0.08; transform: translate(-50%, -50%) scale(1) } 50% { opacity: 0.2; transform: translate(-50%, -50%) scale(1.15) } }
+@keyframes banner-shoot    { 0% { opacity: 0; transform: translate(0, 0) } 5% { opacity: 1 } 15% { opacity: 1; transform: translate(80px, 50px) } 20% { opacity: 0; transform: translate(120px, 75px) } 100% { opacity: 0 } }
+
+@layer utilities {
+  .ink         { color: var(--color-ink); }
+  .ink-mid     { color: var(--color-ink-mid); }
+  .ink-dim     { color: var(--color-ink-dim); }
+  .accent      { color: var(--color-accent); }
+  .bg-paper    { background: var(--color-bg); }
+  .bg-soft     { background: var(--color-bg-soft); }
+  .bg-2        { background: var(--color-bg-2); }
+  .bg-card     { background: var(--color-bg-card); }
+  .bg-elev     { background: var(--color-bg-elev); }
+  .border-line { border-color: var(--color-line); }
+  .border-line-bright { border-color: var(--color-line-bright); }
+
+  /* Tone helpers */
+  .text-cyan    { color: var(--color-accent); }
+  .text-magenta { color: var(--color-magenta); }
+  .text-lime    { color: var(--color-accent); }
+  .text-amber   { color: var(--color-amber); }
+  .text-pink    { color: var(--color-pink); }
+  .text-violet  { color: var(--color-violet); }
+  .text-electric{ color: var(--color-accent); }
+  .text-green   { color: var(--color-accent); }
+  .text-blue    { color: var(--color-blue); }
+
+  /* Neon classes — subtle emerald glow like mrdn */
+  .neon-cyan    { color: var(--color-accent); text-shadow: 0 0 6px rgba(52, 211, 153, 0.45), 0 0 14px rgba(52, 211, 153, 0.25); }
+  .neon-magenta { color: var(--color-magenta); }
+  .neon-lime    { color: var(--color-accent); text-shadow: 0 0 6px rgba(52, 211, 153, 0.45); }
+  .neon-amber   { color: var(--color-amber); }
+  .neon-violet  { color: var(--color-violet); }
+
+  .status-402 { color: var(--color-amber); font-weight: 600; }
+  .status-200 { color: var(--color-accent); font-weight: 600; }
+  .status-tx  { color: var(--color-accent); font-weight: 500; }
+
+  /* Eyebrow tag — subtle pill like mrdn badges */
+  .tag-402 {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55em;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-mid);
+    padding: 5px 12px;
+    border: 1px solid var(--color-line-bright);
+    border-radius: 999px;
+    background: var(--color-bg-card);
+  }
+  .tag-402::before {
+    content: "402";
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+
+  /* Highlight chip — emerald accent */
+  .highlight {
+    display: inline-block;
+    background: var(--color-accent);
+    color: black;
+    padding: 0 0.35em;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  /* Buttons — matching mrdn emerald style */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 22px;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    border-radius: 10px;
+    transition: all 0.18s ease;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    color: black;
+    border: 1px solid var(--color-accent);
+    font-weight: 600;
+  }
+  .btn-primary:hover {
+    background: var(--color-accent-strong);
+    border-color: var(--color-accent-strong);
+  }
+  .btn-ghost {
+    background: var(--color-bg-card);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line-bright);
+  }
+  .btn-ghost:hover {
+    background: var(--color-bg-elev);
+    border-color: var(--color-accent);
+  }
+
+  .input-dark {
+    width: 100%;
+    min-width: 0;
+    padding: 11px 13px;
+    border-radius: 10px;
+    background: #131315;
+    color: var(--color-ink);
+    border: 1px solid var(--color-line);
+    outline: none;
+    font-size: 13px;
+  }
+  .input-dark::placeholder { color: var(--color-ink-dim); }
+  .input-dark:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12); }
+
+  /* Code blocks */
+  .code-block {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.72;
+    color: var(--color-ink);
+    background: #1B1B1C;
+    border: 1px solid var(--color-line);
+    border-radius: 20px;
+    padding: 22px 24px;
+    overflow-x: auto;
+  }
+  .code-block .kw  { color: var(--color-magenta); }
+  .code-block .str { color: var(--color-accent); }
+  .code-block .num { color: var(--color-amber); }
+  .code-block .cmt { color: var(--color-ink-dim); font-style: italic; }
+  .code-block .fn  { color: var(--color-accent); }
+
+  /* Cards — matching mrdn rounded style */
+  .card {
+    position: relative;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-line);
+    border-radius: 20px;
+    padding: 24px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+  .card:hover {
+    border-color: var(--color-line-bright);
+    transform: translateY(-2px);
+  }
+
+  /* HUD corners — disabled, not in mrdn */
+  .hud-corners { position: relative; }
+  .hud-corners::before, .hud-corners::after { display: none; }
+
+  /* Big number / stat */
+  .stat-num {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 4vw, 48px);
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  /* Pulse-dot — live indicator */
+  .pulse-dot { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+  .pulse-dot::before {
+    content: "";
+    position: absolute; inset: -2px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.55;
+    animation: pulse-dot-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Typewriter */
+  .type-line { opacity: 0; animation: type-in 0.25s ease-out forwards; }
+  .caret { display: inline-block; width: 8px; height: 1em; background: currentColor; vertical-align: text-bottom; margin-left: 2px; animation: blink-caret 1s steps(1) infinite; }
+
+  /* Shimmer */
+  .shimmer { position: relative; overflow: hidden; }
+  .shimmer::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
+    background-size: 200% 100%;
+    animation: shimmer-slide 3.5s linear infinite;
+    pointer-events: none;
+  }
+
+  /* Float */
+  .float-y { animation: float-y 6s ease-in-out infinite; }
+
+  /* Reveal on scroll */
+  /* Keep SSR content visible while the client observer hydrates. */
+  .reveal-up { opacity: 1; }
+  .reveal-up.in-view { animation: reveal-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+  /* Ticker */
+  .ticker-track { display: flex; width: max-content; animation: ticker-x var(--ticker-speed, 32s) linear infinite; }
+  .ticker-track-rev { display: flex; width: max-content; animation: ticker-x-rev var(--ticker-speed, 38s) linear infinite; }
+
+  /* Banner showcase */
+  .banner-zoom { animation: banner-zoom 20s ease-in-out infinite; }
+  .banner-twinkle { animation: banner-twinkle 2.5s ease-in-out infinite; }
+  .banner-glow { background: radial-gradient(circle, rgba(52, 211, 153, 0.3) 0%, transparent 70%); animation: banner-glow 4s ease-in-out infinite; }
+  .banner-shoot { animation: banner-shoot 8s ease-out infinite; }
+
+  /* Section backgrounds */
+  .section-dark { background: var(--color-bg); }
+  .section-soft { background: var(--color-bg-soft); }
+
+  /* Grain/vignette — disabled (not in mrdn) */
+  .grain-overlay, .vignette, .scanlines, .cyber-grid { display: none; }
+}

@@ -1,0 +1,84 @@
+{
+  "cubeHunt": {
+    "hasThreeRef": false,
+    "hasMotionRef": false,
+    "transformsCount": 7,
+    "perspectiveCount": 1,
+    "cubeRelated": []
+  },
+  "paymentFlow": {
+    "headings": [
+      "HTTP 402for AI agents.",
+      "One request.Settled in 400ms.",
+      "One request. One signature.Settled on-chain.",
+      "Agent hits a paid endpoint",
+      "Pay USDG on Base",
+      "Replay the request, get data",
+      "Two lines to monetizeany endpoint.",
+      "Built for $0.001transactions.",
+      "Other chains are too slowor too expensive.",
+      "The first 100 endpointsgo free for 6 months."
+    ],
+    "sections": [
+      {
+        "cls": "relative pt-24 pb-32 overflow-hidden",
+        "heading": "HTTP 402for AI agents.",
+        "svgs": 0
+      },
+      {
+        "cls": "section-dark py-32 border-t border-line relative overflow-hidden",
+        "heading": "One request.Settled in 400ms.",
+        "svgs": 1
+      },
+      {
+        "cls": "section-dark py-32 border-t border-line relative",
+        "heading": "One request. One signature.Settled on-chain.",
+        "svgs": 0
+      },
+      {
+        "cls": "bg-soft py-32 border-t border-line",
+        "heading": "Two lines to monetizeany endpoint.",
+        "svgs": 0
+      },
+      {
+        "cls": "section-dark py-32 border-t border-line relative",
+        "heading": "Built for $0.001transactions.",
+        "svgs": 0
+      },
+      {
+        "cls": "section-dark py-32 border-t border-line",
+        "heading": "Other chains are too slowor too expensive.",
+        "svgs": 0
+      },
+      {
+        "cls": "relative bg-paper py-32 border-t border-line overflow-hidden",
+        "heading": "The first 100 endpointsgo free for 6 months.",
+        "svgs": 0
+      }
+    ]
+  },
+  "typewriter": {
+    "candidates": [],
+    "preCodeCount": 4
+  },
+  "fpsRetest": {
+    "avgFps": 16.86006148963602,
+    "jank16": 65,
+    "jank33": 63,
+    "count": 68,
+    "max": 116.69999999999982,
+    "min": 16.59999999999991
+  },
+  "deployedOgImage": {
+    "status": 200,
+    "ct": "image/jpeg",
+    "bytes": 27583
+  },
+  "deployedIcon": {
+    "status": 200,
+    "ct": "image/jpeg",
+    "bytes": 35109
+  },
+  "consoleErrors": [],
+  "networkFailures": []
+}

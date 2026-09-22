@@ -1,0 +1,52 @@
+[
+  {
+    "tag": "H1",
+    "inner": "HTTP<!-- --> <span class=\"neon-flicker inline-block\" style=\"color:var(--color-magenta);text-shadow:0 0 8px var(--color-magenta), 0 0 28px var(--color-magenta), 0 0 56px color-mix(in oklab, var(--color",
+    "text": "HTTP 402for AI agents."
+  },
+  {
+    "tag": "H2",
+    "inner": "One request.<br><span class=\"neon-cyan\">Settled in 400ms.</span>",
+    "text": "One request.Settled in 400ms."
+  },
+  {
+    "tag": "H2",
+    "inner": "One request. One signature.<br><span class=\"neon-cyan\">Settled on-chain.</span>",
+    "text": "One request. One signature.Settled on-chain."
+  },
+  {
+    "tag": "H3",
+    "inner": "Agent hits a paid endpoint",
+    "text": "Agent hits a paid endpoint"
+  },
+  {
+    "tag": "H3",
+    "inner": "Pay USDG on Base",
+    "text": "Pay USDG on Base"
+  },
+  {
+    "tag": "H3",
+    "inner": "Replay the request, get data",
+    "text": "Replay the request, get data"
+  },
+  {
+    "tag": "H2",
+    "inner": "Two lines to monetize<br><span class=\"neon-magenta\">any endpoint.</span>",
+    "text": "Two lines to monetizeany endpoint."
+  },
+  {
+    "tag": "H2",
+    "inner": "Built for <span class=\"neon-magenta font-mono\">$0.001</span><br><span class=\"ink-dim\">transactions.</span>",
+    "text": "Built for $0.001transactions."
+  },
+  {
+    "tag": "H2",
+    "inner": "Other chains are too slow<br><span class=\"neon-cyan\">or too expensive.</span>",
+    "text": "Other chains are too slowor too expensive."
+  },
+  {
+    "tag": "H2",
+    "inner": "The first <span class=\"neon-magenta\">100</span> endpoints<br>go free for <span class=\"neon-magenta\">6</span> months.",
+    "text": "The first 100 endpointsgo free for 6 months."
+  }
+]

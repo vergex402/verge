@@ -1,0 +1,20 @@
+node_modules
+.next
+.vercel
+.env*.local
+*.log
+.DS_Store
+out
+dist
+sdk/dist
+sdk/node_modules
+
+# Local wallet sessions and API-key database
+.data/*.db
+.data/*.db-shm
+.data/*.db-wal
+
+.vercel
+
+# Never commit local signup data
+.data/*.jsonl

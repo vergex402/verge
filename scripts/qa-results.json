@@ -1,0 +1,135 @@
+{
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "networkFailures": [],
+  "metaTags": {
+    "title": "Verge HTTP 402 for AI agents. Settle in 400ms.",
+    "description": "Base-native facilitator for HTTP 402 micropayments. Stripe-clean SDK, 0.5% facilitator fee, USDG settled in 400ms.",
+    "ogTitle": "Verge HTTP 402 for AI agents",
+    "ogDescription": "Base-native micropayments. Settle in 400ms.",
+    "ogImage": "https://verge.so/opengraph-image?509b4490caeb753c",
+    "ogUrl": null,
+    "twitterCard": "summary_large_image",
+    "twitterTitle": "Verge HTTP 402 for AI agents",
+    "twitterDescription": "Base-native micropayments. Settle in 400ms.",
+    "twitterImage": "https://verge.so/twitter-image?e1545492d1915c5c",
+    "canonical": null,
+    "favicon": "/icon?cbce7619643c918c"
+  },
+  "performance": {
+    "homeNavMs": 1566,
+    "homeStatus": 200,
+    "timing": {
+      "domContentLoaded": 848,
+      "loadEvent": 1057,
+      "firstPaint": 1096,
+      "firstContentfulPaint": 1096,
+      "transferSize": 14770,
+      "domNodes": 506
+    },
+    "scrollFps": {
+      "avgFps": 10.529408883821187,
+      "frameCount": 43,
+      "jankFrames": 41,
+      "maxFrameMs": 283.3000000000002
+    },
+    "memory": {
+      "usedJSHeapSize": 10000000,
+      "totalJSHeapSize": 10000000,
+      "limit": 3760000000
+    },
+    "docsStatus": 200
+  },
+  "animations": {
+    "cube": {
+      "canvasFound": false,
+      "canvasCount": 0,
+      "fixedContainer": false
+    },
+    "paymentFlow": {
+      "svgCount": 1,
+      "candidateCount": 15,
+      "hasAnimateEls": 0
+    }
+  },
+  "assets": {
+    "/avatar.jpg": {
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 35109
+    },
+    "/banner.jpg": {
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 27583
+    },
+    "/logo.jpg": {
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 35109
+    },
+    "/opengraph-image": {
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 27583
+    },
+    "/twitter-image": {
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 27583
+    },
+    "/icon": {
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 35109
+    },
+    "__og:image_resolved": {
+      "error": "apiRequestContext.get: connect ETIMEDOUT 192.64.119.183:443\nCall log:\n\u001b[2m  - → GET https://verge.so/opengraph-image?509b4490caeb753c\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n"
+    },
+    "__twitter:image_resolved": {
+      "error": "apiRequestContext.get: connect ETIMEDOUT 192.64.119.183:443\nCall log:\n\u001b[2m  - → GET https://verge.so/twitter-image?e1545492d1915c5c\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n"
+    }
+  },
+  "api": {
+    "demoGet": {
+      "status": 402,
+      "wwwAuthenticate": "x402 realm=\"verge\", nonce=\"ebfed8e049c2\", amount=\"0.001\", recipient=\"7AaaqmRoboLayerD1emoMerchantWaLLetq9Px\", network=\"Robinhood-mainnet\"",
+      "contentType": "application/json",
+      "body": {
+        "error": "Payment required",
+        "code": "PAYMENT_REQUIRED",
+        "challenge": {
+          "nonce": "ebfed8e049c2",
+          "amount": 0.001,
+          "token": "USDG",
+          "network": "Robinhood-mainnet",
+          "recipient": "7AaaqmRoboLayerD1emoMerchantWaLLetq9Px",
+          "memo": "verge:ebfed8e049c2"
+        },
+        "retry": {
+          "method": "GET",
+          "url": "/api/demo",
+          "headers_required": [
+            "x-pay-tx",
+            "x-pay-nonce"
+          ]
+        }
+      }
+    },
+    "waitlistValid": {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "message": "You're on the list. We'll be in touch."
+      }
+    },
+    "waitlistEmpty": {
+      "status": 400,
+      "body": {
+        "error": "Invalid email"
+      }
+    }
+  },
+  "longTasks": []
+}

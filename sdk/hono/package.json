@@ -1,0 +1,31 @@
+{
+  "name": "@verge/hono",
+  "version": "0.1.0",
+  "description": "Hono middleware for HTTP 402 USDG micropayments on Robinhood Chain via Verge.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["x402", "Robinhood", "usdg", "micropayments", "ai-agents", "hono"],
+  "license": "MIT",
+  "peerDependencies": {
+    "hono": "^4.0.0"
+  },
+  "dependencies": {
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
