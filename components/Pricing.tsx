@@ -82,7 +82,7 @@ export default function Pricing() {
               <div className="text-emerald-400 text-[clamp(34px,4vw,48px)] font-light mb-1 leading-none">0%</div>
               <div className="text-gray-500 text-[13px] font-mono mb-6">+ your infra costs</div>
               <ul className="space-y-2 text-[14px] text-gray-500 leading-[1.55]">
-                <li className="flex gap-2"><span className="shrink-0">&mdash;</span><span>Run @verge/facilitator yourself</span></li>
+                <li className="flex gap-2"><span className="shrink-0">&mdash;</span><span>Run @vergex402/express or @vergex402/hono yourself</span></li>
                 <li className="flex gap-2"><span className="shrink-0">&mdash;</span><span>BYO Robinhood RPC (Alchemy / QuickNode)</span></li>
                 <li className="flex gap-2"><span className="shrink-0">&mdash;</span><span>You verify on-chain, you settle</span></li>
                 <li className="flex gap-2"><span className="shrink-0">&mdash;</span><span>Open source, MIT licensed</span></li>

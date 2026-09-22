@@ -1,9 +1,9 @@
-// @verge/hono — Hono middleware for HTTP 402 micropayments on Robinhood Chain.
+// @vergex402/hono — Hono middleware for HTTP 402 micropayments on Robinhood Chain.
 //
 // Usage:
 //
 //   import { Hono } from "hono";
-//   import { paywall } from "@verge/hono";
+//   import { paywall } from "@vergex402/hono";
 //
 //   const app = new Hono();
 //   app.use("/api/premium", paywall({

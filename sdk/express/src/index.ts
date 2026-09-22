@@ -1,8 +1,8 @@
-// @verge/express — Express middleware for HTTP 402 micropayments on Robinhood Chain.
+// @vergex402/express — Express middleware for HTTP 402 micropayments on Robinhood Chain.
 //
 // Usage:
 //
-//   import { paywall } from "@verge/express";
+//   import { paywall } from "@vergex402/express";
 //
 //   app.use("/api/premium", paywall({
 //     amount: 0.001,

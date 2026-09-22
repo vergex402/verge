@@ -46,7 +46,8 @@ export default function Footer() {
               title="Open Source"
               links={[
                 { href: "https://github.com/vergex402/verge", label: "GitHub" },
-                { href: "https://github.com/vergex402/verge/tree/main/sdk/express", label: "@vergex402/express" },
+                { href: "https://www.npmjs.com/package/@vergex402/express", label: "npm · @vergex402/express" },
+                { href: "https://www.npmjs.com/package/@vergex402/hono", label: "npm · @vergex402/hono" },
                 { href: "https://github.com/vergex402/verge/releases", label: "Releases" },
               ]}
             />

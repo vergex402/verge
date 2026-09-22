@@ -13,14 +13,21 @@ export default function Docs() {
         <h1 className="font-display text-[44px] font-semibold tracking-[-0.03em] leading-[1.05] ink mb-4">
           Verge in 60 seconds.
         </h1>
-        <p className="ink-mid text-[17px] leading-[1.55] mb-12">
+        <p className="ink-mid text-[17px] leading-[1.55] mb-6">
           Monetize any HTTP endpoint with USDG on Robinhood. Wallet-authenticated, no email or password.
         </p>
+        <div className="flex flex-wrap gap-2 mb-12">
+          <a href="https://www.npmjs.com/package/@vergex402/express" target="_blank" rel="noopener"><img src="https://img.shields.io/npm/v/@vergex402/express?label=%40vergex402%2Fexpress&color=10b981" alt="@vergex402/express on npm" /></a>
+          <a href="https://www.npmjs.com/package/@vergex402/hono" target="_blank" rel="noopener"><img src="https://img.shields.io/npm/v/@vergex402/hono?label=%40vergex402%2Fhono&color=10b981" alt="@vergex402/hono on npm" /></a>
+          <a href="https://github.com/vergex402/verge" target="_blank" rel="noopener"><img src="https://img.shields.io/badge/GitHub-vergex402%2Fverge-black?logo=github" alt="GitHub repository" /></a>
+        </div>
 
         <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
           1. Install
         </h2>
+        <p className="ink-mid mb-3 leading-[1.55] text-[15px]">Pick the adapter for your framework — both verify the same USDG payments on Robinhood Chain.</p>
         <pre className="code-block">npm install @vergex402/express</pre>
+        <pre className="code-block">npm install @vergex402/hono hono</pre>
 
         <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
           2. Drop in the middleware
@@ -41,6 +48,22 @@ app.get("/api/premium", (req, res) => {
 });
 
 app.listen(3000);`}</pre>
+
+        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
+          Using Hono instead?
+        </h2>
+        <pre className="code-block">{`import { Hono } from "hono";
+import { paywall } from "@vergex402/hono";
+
+const app = new Hono();
+
+app.use("/api/premium", paywall({
+  amount: 0.001,
+  recipient: process.env.WALLET,
+  network: "robinhood-mainnet",
+}));
+
+app.get("/api/premium", (c) => c.json({ ok: true, message: "unlocked" }));`}</pre>
 
         <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
           3. Test the 402 flow
@@ -90,13 +113,46 @@ HTTP/1.1 200 OK
           <li>
             <a
               className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
-              href="https://github.com/vergex402/verge/tree/main/sdk/express"
+              href="https://www.npmjs.com/package/@vergex402/express"
+              target="_blank"
+              rel="noopener"
+            >
+              npmjs.com/package/@vergex402/express
+            </a>{" "}
+            — Express middleware
+          </li>
+          <li>
+            <a
+              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
+              href="https://www.npmjs.com/package/@vergex402/hono"
+              target="_blank"
+              rel="noopener"
+            >
+              npmjs.com/package/@vergex402/hono
+            </a>{" "}
+            — Hono middleware
+          </li>
+          <li>
+            <a
+              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
+              href="https://github.com/vergex402/verge"
               target="_blank"
               rel="noopener"
             >
               github.com/vergex402/verge
             </a>{" "}
-            — SDK source
+            — full source, SDKs, and app
+          </li>
+          <li>
+            <a
+              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
+              href="https://vergesnowy.dev/api/catalog"
+              target="_blank"
+              rel="noopener"
+            >
+              /api/catalog
+            </a>{" "}
+            — machine-readable gateway discovery for agents
           </li>
           <li>
             <a

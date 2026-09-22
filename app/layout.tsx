@@ -3,7 +3,6 @@ import "./globals.css";
 import Providers from "./providers";
 
 // metadataBase points at the live deployment so OG image URLs resolve.
-// When verge.so / verge402.xyz domain ships, swap this constant.
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://vergesnowy.dev";
 
@@ -24,7 +23,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Verge — HTTP 402 for AI agents",
     description: "Robinhood-native micropayments. Settled in 400ms.",
-    site: "@verge402",
+    site: "@vergesnowyx402",
   },
 };
 

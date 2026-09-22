@@ -37,6 +37,14 @@ export default function NavBar() {
               GitHub
             </a>
             <a
+              href="https://www.npmjs.com/package/@vergex402/express"
+              target="_blank"
+              rel="noopener"
+              className="text-sm font-medium text-gray-300 transition-colors hover:text-white"
+            >
+              npm
+            </a>
+            <a
               href="https://x.com/vergesnowyx402"
               target="_blank"
               rel="noopener"
