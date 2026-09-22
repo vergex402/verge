@@ -11,7 +11,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=nextdotjs)](https://nextjs.org)
 [![npm express](https://img.shields.io/npm/v/@vergex402/express?label=%40vergex402%2Fexpress&style=flat-square&color=10b981)](https://www.npmjs.com/package/@vergex402/express)
 [![npm hono](https://img.shields.io/npm/v/@vergex402/hono?label=%40vergex402%2Fhono&style=flat-square&color=10b981)](https://www.npmjs.com/package/@vergex402/hono)
-[![Stars](https://img.shields.io/badge/stars-24-yellow?style=flat-square&logo=github)](https://github.com/vergex402/verge/stargazers)
+[![Stars](https://img.shields.io/github/stars/vergex402/verge?style=flat-square&logo=github&color=10b981)](https://github.com/vergex402/verge/stargazers)
 [![Status](https://img.shields.io/badge/status-LIVE-10b981?style=flat-square)]()
 [![$VERGE](https://img.shields.io/badge/$VERGE-Pons-10b981?style=flat-square)](https://ponsralph.xyz)
 
