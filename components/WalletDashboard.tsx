@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import { useSignMessage, useBalance, useReadContract } from "wagmi";
 import { formatUnits } from "viem";
 import WalletButton from "@/components/WalletButton";
+import Sidebar from "@/components/Sidebar";
+import MobileTabBar from "@/components/MobileTabBar";
+import CommandPalette from "@/components/CommandPalette";
+import Sparkline from "@/components/Sparkline";
+import PaymentFlowMini from "@/components/PaymentFlowMini";
 
 const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as const;
 const erc20Abi = [{
@@ -34,11 +39,8 @@ function EmptyState({ tab, authorized, onGenerate }: { tab: Tab; authorized: boo
 }
 
 export default function WalletDashboard() {
-  // Use AppKit hooks — these never throw on chain mismatch
   const { address, isConnected } = useAppKitAccount();
   const { chainId } = useAppKitNetwork();
-
-
 
   const onRobinhood = chainId === 4663;
   const addr = address as `0x${string}` | undefined;
@@ -56,8 +58,8 @@ export default function WalletDashboard() {
   const [listingName, setListingName] = useState("");
   const [listingUrl, setListingUrl] = useState("");
   const [listingPrice, setListingPrice] = useState("0.001");
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
-  // Wagmi reads — only enabled on correct chain
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const usdg = useReadContract({
     address: USDG, abi: erc20Abi, functionName: "balanceOf",
@@ -78,6 +80,44 @@ export default function WalletDashboard() {
     return () => { cancelled = true; };
   }, [active, authorized, onRobinhood]);
 
+  const authorize = useCallback(async () => {
+    if (!addr || authBusy) return;
+    setAuthBusy(true); setAuthError("");
+    try {
+      const challengeRes = await fetch(`/api/auth/challenge?address=${addr}`);
+      const challenge = await challengeRes.json();
+      const signature = await signMessageAsync({ message: challenge.message });
+      const res = await fetch("/api/auth/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: addr, message: challenge.message, signature }) });
+      if (!res.ok) throw new Error((await res.json()).error || "Authorization failed");
+      setAuthorized(true);
+    } catch (e) { setAuthError(e instanceof Error ? e.message : "Cancelled"); }
+    finally { setAuthBusy(false); }
+  }, [addr, authBusy, signMessageAsync]);
+
+  const generateKey = useCallback(async () => {
+    const r = await fetch("/api/keys", { method: "POST" });
+    const d = await r.json();
+    if (r.ok) { setNewKey(d.key); setActive("API Keys"); }
+    else setAuthError(d.error || "Could not generate key");
+  }, []);
+
+  async function publishListing(e: React.FormEvent) {
+    e.preventDefault();
+    const r = await fetch("/api/marketplace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: listingName, url: listingUrl, price: listingPrice }) });
+    const d = await r.json();
+    if (!r.ok) { setAuthError(d.error || "Could not publish"); return; }
+    setListings((cur) => [d, ...cur]); setListingName(""); setListingUrl("");
+  }
+
+  const commands = [
+    { id: "nav-tx", label: "Go to Transactions", hint: "Nav", action: () => setActive("Transactions") },
+    { id: "nav-mp", label: "Go to Marketplace", hint: "Nav", action: () => setActive("Marketplace") },
+    { id: "nav-rc", label: "Go to Receipts", hint: "Nav", action: () => setActive("Receipts") },
+    { id: "nav-key", label: "Go to API Keys", hint: "Nav", action: () => setActive("API Keys") },
+    { id: "gen-key", label: "Generate API key", hint: "Action", action: () => { generateKey(); } },
+    { id: "docs", label: "Open documentation", hint: "↗", action: () => window.open("/docs", "_blank") },
+    { id: "catalog", label: "Open API catalog", hint: "↗", action: () => window.open("/api/catalog", "_blank") },
+  ];
 
   if (!isConnected) return (
     <main className="min-h-screen bg-[#171719] text-white">
@@ -89,14 +129,19 @@ export default function WalletDashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-5 md:px-8 py-10 md:py-16">
-        <div className="flex flex-col gap-3 mb-10"><div className="font-mono text-[11px] tracking-[0.2em] text-emerald-400 uppercase">Open payment infrastructure</div><h1 className="text-4xl md:text-6xl font-light tracking-tight">Gateway for paid agent endpoints.</h1><p className="max-w-2xl text-gray-400 text-base md:text-lg leading-relaxed">Discover USDG-priced APIs, inspect the x402 flow, then connect a wallet only when you want to publish an endpoint or create a key.</p></div>
+        <div className="flex flex-col gap-3 mb-6"><div className="font-mono text-[11px] tracking-[0.2em] text-emerald-400 uppercase">Open payment infrastructure</div><h1 className="text-4xl md:text-6xl font-light tracking-tight">Gateway for paid agent endpoints.</h1><p className="max-w-2xl text-gray-400 text-base md:text-lg leading-relaxed">Discover USDG-priced APIs, inspect the x402 flow, then connect a wallet only when you want to publish an endpoint or create a key.</p></div>
+
+        <div className="mb-10 rounded-2xl border border-[#2a2a2e] bg-[#1B1B1C] px-5 py-4 overflow-x-auto">
+          <div className="text-[11px] font-mono text-gray-500 uppercase tracking-wider mb-3">Live x402 flow</div>
+          <PaymentFlowMini />
+        </div>
 
         <div className="grid lg:grid-cols-[1.45fr_0.8fr] gap-5">
           <section className="rounded-[24px] border border-[#2a2a2e] overflow-hidden bg-[#1B1B1C]">
             <div className="flex items-center justify-between px-5 md:px-7 py-5 border-b border-[#2a2a2e]"><div><div className="text-white font-medium">Gateway catalog</div><div className="text-sm text-gray-500 mt-1">Public x402-compatible surfaces</div></div><span className="font-mono text-xs text-emerald-400">LIVE / 4663</span></div>
             <div className="p-4 md:p-5 grid gap-3">
               <a href="/api/demo" target="_blank" className="group rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5 hover:border-emerald-500/50 transition-colors"><div className="flex items-start justify-between gap-5"><div><div className="font-mono text-xs text-emerald-400 mb-3">GET /api/demo</div><div className="text-white text-lg">USDG payment challenge</div><p className="text-sm text-gray-500 mt-2 max-w-lg">Inspect a real HTTP 402 response, then replay with a verified Robinhood Chain transaction.</p></div><span className="text-gray-500 group-hover:text-emerald-400">↗</span></div><div className="mt-5 flex gap-2"><span className="rounded-md bg-amber-500/10 px-2 py-1 font-mono text-[11px] text-amber-400">402 REQUIRED</span><span className="rounded-md bg-emerald-500/10 px-2 py-1 font-mono text-[11px] text-emerald-400">USDG</span></div></a>
-              <a href="/docs" className="group rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5 hover:border-emerald-500/50 transition-colors"><div className="flex items-start justify-between gap-5"><div><div className="font-mono text-xs text-emerald-400 mb-3">SDK / DOCUMENTATION</div><div className="text-white text-lg">Ship a paid endpoint</div><p className="text-sm text-gray-500 mt-2 max-w-lg">Express middleware, Robinhood Chain configuration, receipt verification, and replay-safe payment handling.</p></div><span className="text-gray-500 group-hover:text-emerald-400">↗</span></div></a>
+              <a href="/docs" className="group rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5 hover:border-emerald-500/50 transition-colors"><div className="flex items-start justify-between gap-5"><div><div className="font-mono text-xs text-emerald-400 mb-3">SDK / DOCUMENTATION</div><div className="text-white text-lg">Ship a paid endpoint</div><p className="text-sm text-gray-500 mt-2 max-w-lg">Express or Hono middleware, Robinhood Chain configuration, receipt verification, and replay-safe payment handling.</p></div><span className="text-gray-500 group-hover:text-emerald-400">↗</span></div></a>
               <a href="/api/catalog" target="_blank" className="group rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5 hover:border-emerald-500/50 transition-colors"><div className="flex items-start justify-between gap-5"><div><div className="font-mono text-xs text-emerald-400 mb-3">GET /api/catalog</div><div className="text-white text-lg">Machine-readable discovery</div><p className="text-sm text-gray-500 mt-2 max-w-lg">A public JSON catalog for agents to discover Verge gateway capabilities and registered surfaces.</p></div><span className="text-gray-500 group-hover:text-emerald-400">↗</span></div></a>
             </div>
             <div className="px-4 md:px-5 pb-5 pt-1 grid sm:grid-cols-2 gap-3">
@@ -114,7 +159,6 @@ export default function WalletDashboard() {
     </main>
   );
 
-  // Connected but wrong chain
   if (!onRobinhood) return (
     <main className="min-h-screen bg-[#171719] text-white flex items-center justify-center px-6">
       <div className="max-w-lg text-center">
@@ -129,89 +173,89 @@ export default function WalletDashboard() {
     </main>
   );
 
-  const usdgDisplay = usdg.data == null ? "—" : `${(Number(usdg.data) / 1e6).toFixed(4)} USDG`;
+  const usdgBalance = usdg.data == null ? null : Number(usdg.data) / 1e6;
+  const usdgDisplay = usdgBalance == null ? "—" : `${usdgBalance.toFixed(4)} USDG`;
   const ethDisplay = eth.data ? `${Number(formatUnits(eth.data.value, eth.data.decimals)).toFixed(5)} ETH` : "—";
 
-  async function authorize() {
-    if (!addr || authBusy) return;
-    setAuthBusy(true); setAuthError("");
-    try {
-      const challengeRes = await fetch(`/api/auth/challenge?address=${addr}`);
-      const challenge = await challengeRes.json();
-      const signature = await signMessageAsync({ message: challenge.message });
-      const res = await fetch("/api/auth/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: addr, message: challenge.message, signature }) });
-      if (!res.ok) throw new Error((await res.json()).error || "Authorization failed");
-      setAuthorized(true);
-    } catch (e) { setAuthError(e instanceof Error ? e.message : "Cancelled"); }
-    finally { setAuthBusy(false); }
-  }
-
-  async function generateKey() {
-    const r = await fetch("/api/keys", { method: "POST" });
-    const d = await r.json();
-    if (r.ok) setNewKey(d.key);
-    else setAuthError(d.error || "Could not generate key");
-  }
-
-  async function publishListing(e: React.FormEvent) {
-    e.preventDefault();
-    const r = await fetch("/api/marketplace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: listingName, url: listingUrl, price: listingPrice }) });
-    const d = await r.json();
-    if (!r.ok) { setAuthError(d.error || "Could not publish"); return; }
-    setListings((cur) => [d, ...cur]); setListingName(""); setListingUrl("");
-  }
+  // Lightweight trend from recent activity — enough for a sparkline, no separate metrics API needed.
+  const usdgTrend = activity.length >= 2
+    ? activity.slice(0, 8).reverse().reduce<number[]>((acc, tx) => [...acc, (acc[acc.length - 1] || 0) + (tx.amount || 0)], [usdgBalance ? usdgBalance - activity.reduce((s: number, t: any) => s + (t.amount || 0), 0) : 0])
+    : (usdgBalance != null ? [usdgBalance, usdgBalance] : [0, 0]);
 
   return (
-    <main className="min-h-screen bg-[#171719] text-white px-4 py-6 md:px-8 md:py-10">
-      <div className="max-w-6xl mx-auto">
-        <header className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between mb-10">
-          <div>
-            <a href="/" className="font-mono text-xs tracking-[0.2em] text-emerald-400 uppercase">← Verge</a>
-            <h1 className="text-3xl md:text-5xl font-light mt-3">Public API gateway</h1>
-            <p className="text-gray-500 mt-2">Robinhood Chain · USDG · wallet-authenticated</p>
-          </div>
-          <WalletButton />
-        </header>
+    <main className="min-h-screen bg-[#171719] text-white flex">
+      <Sidebar active={active} onSelect={(k) => setActive(k as Tab)} onOpenPalette={() => setPaletteOpen(true)} />
+      <CommandPalette commands={commands} />
 
-        {!authorized && <section className="mb-8 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"><div><div className="text-white font-medium">Authorize this wallet</div><div className="text-sm text-gray-500 mt-1">One signature, no gas. Unlocks wallet-scoped portal actions.</div></div><button type="button" onClick={authorize} disabled={authBusy} className="btn btn-primary">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button></section>}
-        {authError && <div className="mb-6 text-sm text-red-400">{authError}</div>}
+      <div className="flex-1 min-w-0">
+        <MobileTabBar active={active} onSelect={(k) => setActive(k as Tab)} />
 
-        <section className="grid sm:grid-cols-3 gap-4 mb-8">
-          <div className="card"><div className="text-gray-500 text-xs uppercase tracking-wider">Wallet</div><div className="font-mono text-sm mt-3 text-emerald-400 break-all">{addr}</div></div>
-          <div className="card"><div className="text-gray-500 text-xs uppercase tracking-wider">USDG balance</div><div className="text-2xl mt-3">{usdgDisplay}</div></div>
-          <div className="card"><div className="text-gray-500 text-xs uppercase tracking-wider">Gas balance</div><div className="text-2xl mt-3">{ethDisplay}</div></div>
-        </section>
+        <div className="px-4 py-6 md:px-8 md:py-8 max-w-6xl mx-auto">
+          <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-light">{active}</h1>
+              <p className="text-gray-500 text-sm mt-1">Robinhood Chain · USDG · wallet-authenticated</p>
+            </div>
+            <div className="md:hidden"><WalletButton /></div>
+            <div className="hidden md:block"><WalletButton /></div>
+          </header>
 
-        <section className="card p-0 overflow-hidden">
-          <nav className="flex gap-1 overflow-x-auto p-3 border-b border-[#2a2a2e]">
-            {tabs.map((tab) => (
-              <button key={tab} type="button" onClick={() => setActive(tab)} className={`px-4 py-2.5 rounded-xl text-sm whitespace-nowrap transition-colors ${active === tab ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" : "text-gray-400 hover:text-white hover:bg-white/5"}`}>{tab}</button>
-            ))}
-          </nav>
-          <div className="p-5 md:p-8">
-            {active === "Marketplace" && authorized ? (
-              <div className="rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5">
-                <div className="text-white font-medium mb-4">Live endpoint marketplace</div>
-                <form onSubmit={publishListing} className="grid md:grid-cols-4 gap-3 mb-6">
-                  <input required value={listingName} onChange={(e) => setListingName(e.target.value)} placeholder="Endpoint name" className="input-dark" />
-                  <input required type="url" value={listingUrl} onChange={(e) => setListingUrl(e.target.value)} placeholder="https://api.example.com" className="input-dark" />
-                  <input required type="number" min="0.000001" step="0.000001" value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="USDG / call" className="input-dark" />
-                  <button type="submit" className="btn btn-primary">Publish</button>
-                </form>
-                {listings.length === 0 ? <div className="text-sm text-gray-500 py-8 text-center">No public endpoints yet.</div> : <div className="space-y-2">{listings.map((item) => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#1B1B1C] px-4 py-3 hover:border-emerald-500/30 border border-transparent"><div className="flex justify-between gap-3"><span className="text-white">{item.name}</span><span className="text-emerald-400">{item.price} USDG</span></div><div className="text-xs text-gray-500 mt-1 truncate">{item.url}</div></a>)}</div>}
+          {!authorized && (
+            <section className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div><div className="text-white font-medium">Authorize this wallet</div><div className="text-sm text-gray-500 mt-1">One signature, no gas. Unlocks wallet-scoped portal actions.</div></div>
+              <button type="button" onClick={authorize} disabled={authBusy} className="btn btn-primary">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>
+            </section>
+          )}
+          {authError && <div className="mb-6 text-sm text-red-400">{authError}</div>}
+
+          <section className="mb-6 rounded-2xl border border-[#2a2a2e] bg-[#1B1B1C] px-5 py-4 overflow-x-auto">
+            <div className="text-[11px] font-mono text-gray-500 uppercase tracking-wider mb-3">Live x402 flow</div>
+            <PaymentFlowMini />
+          </section>
+
+          <section className="grid sm:grid-cols-3 gap-4 mb-8">
+            <div className="card">
+              <div className="text-gray-500 text-xs uppercase tracking-wider">Wallet</div>
+              <div className="font-mono text-sm mt-3 text-emerald-400 break-all">{addr}</div>
+            </div>
+            <div className="card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-gray-500 text-xs uppercase tracking-wider">USDG balance</div>
+                  <div className="text-2xl mt-3">{usdgDisplay}</div>
+                </div>
+                <Sparkline data={usdgTrend} className="w-16 h-8 mt-1" />
               </div>
-            ) : (active === "Transactions" || active === "Receipts") && authorized ? (
-              <div className="rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5">
-                <div className="flex items-center justify-between mb-4"><div className="text-white font-medium">Live USDG {active.toLowerCase()}</div><div className="text-xs text-gray-500">Robinhood Chain 4663</div></div>
-                {activityLoading && <div className="text-sm text-gray-500 py-8 text-center">Reading Transfer events…</div>}
-                {activityError && <div className="text-sm text-red-400 py-8 text-center">{activityError}</div>}
-                {!activityLoading && !activityError && activity.length === 0 && <div className="text-sm text-gray-500 py-8 text-center">No confirmed USDG transfers found in the recent scan window.</div>}
-                <div className="space-y-2">{activity.map((tx) => <a key={tx.hash + tx.block} href={tx.explorer} target="_blank" rel="noreferrer" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#1B1B1C] px-4 py-3 text-sm hover:border-emerald-500/30 border border-transparent"><span className="font-mono text-emerald-400">{tx.hash.slice(0, 10)}…{tx.hash.slice(-8)}</span><span className="text-white">{tx.amount.toFixed(4)} USDG</span><span className="text-gray-500">block {tx.block}</span><span className="text-emerald-400">confirmed</span></a>)}</div>
-              </div>
-            ) : <EmptyState tab={active} authorized={authorized} onGenerate={generateKey} />}
-            {newKey && active === "API Keys" && <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><div className="text-xs text-emerald-400 mb-2">Copy this key now — it will not be shown again.</div><code className="text-sm text-white break-all">{newKey}</code><div className="text-xs text-gray-500 mt-3">1,000 requests / day · pass as <code className="text-gray-400">X-API-Key</code> on <code className="text-gray-400">/api/demo</code></div></div>}
-          </div>
-        </section>
+            </div>
+            <div className="card"><div className="text-gray-500 text-xs uppercase tracking-wider">Gas balance</div><div className="text-2xl mt-3">{ethDisplay}</div></div>
+          </section>
+
+          <section className="card p-0 overflow-hidden">
+            <div className="p-5 md:p-8">
+              {active === "Marketplace" && authorized ? (
+                <div className="rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5">
+                  <div className="text-white font-medium mb-4">Live endpoint marketplace</div>
+                  <form onSubmit={publishListing} className="grid md:grid-cols-4 gap-3 mb-6">
+                    <input required value={listingName} onChange={(e) => setListingName(e.target.value)} placeholder="Endpoint name" className="input-dark" />
+                    <input required type="url" value={listingUrl} onChange={(e) => setListingUrl(e.target.value)} placeholder="https://api.example.com" className="input-dark" />
+                    <input required type="number" min="0.000001" step="0.000001" value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="USDG / call" className="input-dark" />
+                    <button type="submit" className="btn btn-primary">Publish</button>
+                  </form>
+                  {listings.length === 0 ? <div className="text-sm text-gray-500 py-8 text-center">No public endpoints yet.</div> : <div className="space-y-2">{listings.map((item) => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#1B1B1C] px-4 py-3 hover:border-emerald-500/30 border border-transparent"><div className="flex justify-between gap-3"><span className="text-white">{item.name}</span><span className="text-emerald-400">{item.price} USDG</span></div><div className="text-xs text-gray-500 mt-1 truncate">{item.url}</div></a>)}</div>}
+                </div>
+              ) : (active === "Transactions" || active === "Receipts") && authorized ? (
+                <div className="rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5">
+                  <div className="flex items-center justify-between mb-4"><div className="text-white font-medium">Live USDG {active.toLowerCase()}</div><div className="text-xs text-gray-500">Robinhood Chain 4663</div></div>
+                  {activityLoading && <div className="text-sm text-gray-500 py-8 text-center">Reading Transfer events…</div>}
+                  {activityError && <div className="text-sm text-red-400 py-8 text-center">{activityError}</div>}
+                  {!activityLoading && !activityError && activity.length === 0 && <div className="text-sm text-gray-500 py-8 text-center">No confirmed USDG transfers found in the recent scan window.</div>}
+                  <div className="space-y-2">{activity.map((tx) => <a key={tx.hash + tx.block} href={tx.explorer} target="_blank" rel="noreferrer" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#1B1B1C] px-4 py-3 text-sm hover:border-emerald-500/30 border border-transparent"><span className="font-mono text-emerald-400">{tx.hash.slice(0, 10)}…{tx.hash.slice(-8)}</span><span className="text-white">{tx.amount.toFixed(4)} USDG</span><span className="text-gray-500">block {tx.block}</span><span className="text-emerald-400">confirmed</span></a>)}</div>
+                </div>
+              ) : <EmptyState tab={active} authorized={authorized} onGenerate={generateKey} />}
+              {newKey && active === "API Keys" && <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><div className="text-xs text-emerald-400 mb-2">Copy this key now — it will not be shown again.</div><code className="text-sm text-white break-all">{newKey}</code><div className="text-xs text-gray-500 mt-3">1,000 requests / day · pass as <code className="text-gray-400">X-API-Key</code> on <code className="text-gray-400">/api/demo</code></div></div>}
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
