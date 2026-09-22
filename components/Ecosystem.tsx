@@ -1,12 +1,12 @@
 import Reveal from "@/components/Reveal";
 
 const partners = [
-  { name: "Robinhood" },
-  { name: "Circle" },
-  { name: "Alchemy" },
-  { name: "x402.org" },
-  { name: "Uniswap" },
-  { name: "Pons" },
+  { name: "Robinhood", logo: "/logos/robinhood.jpg", href: "https://robinhood.com" },
+  { name: "Circle", logo: "/logos/circle.jpg", href: "https://www.circle.com" },
+  { name: "Alchemy", logo: "/logos/alchemy.jpg", href: "https://www.alchemy.com" },
+  { name: "x402.org", logo: "/logos/x402.svg", href: "https://www.x402.org" },
+  { name: "Uniswap", logo: "/logos/uniswap.png", href: "https://uniswap.org" },
+  { name: "Pons", logo: "/logos/pons.jpg", href: "https://ponsralph.xyz" },
 ];
 
 export default function Ecosystem() {
@@ -26,11 +26,21 @@ export default function Ecosystem() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-[720px] mx-auto mb-14">
           {partners.map((p, i) => (
             <Reveal key={p.name} delay={100 + i * 60}>
-              <div className="bg-[#1B1B1C] rounded-[20px] p-5 text-center border border-[#2a2a2e]">
-                <span className="text-gray-300 text-[13px] font-medium tracking-[0.04em]">
+              <a
+                href={p.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex flex-col items-center justify-center gap-3 bg-[#1B1B1C] rounded-[20px] p-6 text-center border border-[#2a2a2e] hover:border-emerald-500/40 transition-colors"
+              >
+                <img
+                  src={p.logo}
+                  alt={p.name}
+                  className={`w-10 h-10 object-contain ${p.name === "x402.org" ? "opacity-90" : "rounded-full"}`}
+                />
+                <span className="text-gray-300 text-[13px] font-medium tracking-[0.04em] group-hover:text-white transition-colors">
                   {p.name}
                 </span>
-              </div>
+              </a>
             </Reveal>
           ))}
         </div>
