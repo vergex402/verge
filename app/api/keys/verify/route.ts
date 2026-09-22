@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   }
   if (!key) key = req.headers.get("x-api-key") || undefined;
 
-  const result = introspectApiKey(key);
+  const result = await introspectApiKey(key);
   return Response.json(result, {
     status: result.ok ? 200 : 401,
     headers: { "Cache-Control": "no-store" },

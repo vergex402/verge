@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     if (!address || !message || !signature || !(await consumeChallenge(address, message, signature))) {
       return Response.json({ error: "Invalid or expired wallet signature" }, { status: 401 });
     }
-    const session = createSession(address);
+    const session = await createSession(address);
     const jar = await cookies();
     jar.set("verge_session", session.token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 });
     return Response.json({ ok: true, address: address.toLowerCase(), expiresAt: session.expiresAt });

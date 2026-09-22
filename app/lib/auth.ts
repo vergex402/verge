@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { verifyMessage } from "viem";
-import { cleanupAuth, db } from "@/app/lib/db";
+import { cleanupAuth, query, queryOne } from "@/app/lib/db";
 
 const TTL = 5 * 60 * 1000;
 const SESSION_TTL = 60 * 60 * 1000;
@@ -9,23 +9,29 @@ export function normalizeAddress(address: string) {
   return address.trim().toLowerCase();
 }
 
-export function makeChallenge(address: string) {
-  cleanupAuth();
+export async function makeChallenge(address: string) {
+  await cleanupAuth();
   const wallet = normalizeAddress(address);
   const nonce = randomBytes(16).toString("hex");
   const issuedAt = new Date().toISOString();
   const message = `Sign in to Verge Gateway\n\nWallet: ${wallet}\nNonce: ${nonce}\nIssued At: ${issuedAt}\n\nThis request will not trigger a blockchain transaction or cost any gas.`;
   const expiresAt = Date.now() + TTL;
-  db.prepare("INSERT OR REPLACE INTO challenges(wallet, message, expires_at) VALUES (?, ?, ?)").run(wallet, message, expiresAt);
+  await query(
+    "INSERT INTO challenges(wallet, message, expires_at) VALUES ($1, $2, $3) ON CONFLICT (wallet) DO UPDATE SET message = EXCLUDED.message, expires_at = EXCLUDED.expires_at",
+    [wallet, message, expiresAt]
+  );
   return { message, expiresAt };
 }
 
 export async function consumeChallenge(address: string, message: string, signature: string) {
-  cleanupAuth();
+  await cleanupAuth();
   const wallet = normalizeAddress(address);
-  const row = db.prepare("SELECT message FROM challenges WHERE wallet = ? AND expires_at >= ?").get(wallet, Date.now()) as { message?: string } | undefined;
+  const row = await queryOne<{ message: string }>(
+    "SELECT message FROM challenges WHERE wallet = $1 AND expires_at >= $2",
+    [wallet, Date.now()]
+  );
   if (!row || row.message !== message) return false;
-  db.prepare("DELETE FROM challenges WHERE wallet = ?").run(wallet);
+  await query("DELETE FROM challenges WHERE wallet = $1", [wallet]);
   try {
     return await verifyMessage({ address: wallet as `0x${string}`, message, signature: signature as `0x${string}` });
   } catch {
@@ -33,17 +39,23 @@ export async function consumeChallenge(address: string, message: string, signatu
   }
 }
 
-export function createSession(address: string) {
-  cleanupAuth();
+export async function createSession(address: string) {
+  await cleanupAuth();
   const token = randomBytes(32).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL;
-  db.prepare("INSERT INTO sessions(token, wallet, expires_at, created_at) VALUES (?, ?, ?, ?)").run(token, normalizeAddress(address), expiresAt, new Date().toISOString());
+  await query(
+    "INSERT INTO sessions(token, wallet, expires_at, created_at) VALUES ($1, $2, $3, $4)",
+    [token, normalizeAddress(address), expiresAt, new Date().toISOString()]
+  );
   return { token, expiresAt };
 }
 
-export function sessionAddress(token: string | undefined) {
+export async function sessionAddress(token: string | undefined) {
   if (!token) return null;
-  cleanupAuth();
-  const row = db.prepare("SELECT wallet FROM sessions WHERE token = ? AND expires_at >= ?").get(token, Date.now()) as { wallet?: string } | undefined;
+  await cleanupAuth();
+  const row = await queryOne<{ wallet: string }>(
+    "SELECT wallet FROM sessions WHERE token = $1 AND expires_at >= $2",
+    [token, Date.now()]
+  );
   return row?.wallet || null;
 }

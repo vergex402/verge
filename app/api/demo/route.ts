@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   // An API key bypasses per-call USDG payment but is quota-metered per wallet.
   if (apiKey) {
-    const check = checkApiKey(apiKey);
+    const check = await checkApiKey(apiKey);
     if (!check.ok) {
       const status = check.error === "QUOTA_EXCEEDED" ? 429 : 401;
       return Response.json({ error: "API key rejected", code: check.error }, { status });

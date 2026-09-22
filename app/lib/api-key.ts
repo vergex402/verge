@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { db } from "@/app/lib/db";
+import { queryOne, query } from "@/app/lib/db";
 
 const DAILY_RESET = () => new Date().toISOString().slice(0, 10);
 
@@ -19,17 +19,18 @@ interface KeyRow {
   usageDate: string | null;
 }
 
-function lookupKey(rawKey: string): KeyRow | undefined {
+async function lookupKey(rawKey: string): Promise<KeyRow | undefined> {
   const hash = createHash("sha256").update(rawKey).digest("hex");
-  return db.prepare(
-    "SELECT wallet, revoked_at as revokedAt, quota_limit as quotaLimit, usage_count as usageCount, usage_date as usageDate FROM api_keys WHERE key_hash = ?"
-  ).get(hash) as KeyRow | undefined;
+  return queryOne<KeyRow>(
+    `SELECT wallet, revoked_at as "revokedAt", quota_limit as "quotaLimit", usage_count as "usageCount", usage_date as "usageDate" FROM api_keys WHERE key_hash = $1`,
+    [hash]
+  );
 }
 
 /** Verify an X-API-Key header, enforce a rolling daily quota, and record usage. */
-export function checkApiKey(rawKey: string | null | undefined): KeyCheckResult {
+export async function checkApiKey(rawKey: string | null | undefined): Promise<KeyCheckResult> {
   if (!rawKey) return { ok: false, error: "MISSING_KEY" };
-  const row = lookupKey(rawKey);
+  const row = await lookupKey(rawKey);
   if (!row) return { ok: false, error: "INVALID_KEY" };
   if (row.revokedAt) return { ok: false, error: "KEY_REVOKED" };
 
@@ -38,8 +39,8 @@ export function checkApiKey(rawKey: string | null | undefined): KeyCheckResult {
   if (usageCount >= row.quotaLimit) return { ok: false, wallet: row.wallet, remaining: 0, limit: row.quotaLimit, error: "QUOTA_EXCEEDED" };
 
   const hash = createHash("sha256").update(rawKey).digest("hex");
-  db.prepare("UPDATE api_keys SET usage_count = ?, usage_date = ?, last_used_at = ? WHERE key_hash = ?")
-    .run(usageCount + 1, today, new Date().toISOString(), hash);
+  await query("UPDATE api_keys SET usage_count = $1, usage_date = $2, last_used_at = $3 WHERE key_hash = $4",
+    [usageCount + 1, today, new Date().toISOString(), hash]);
 
   return { ok: true, wallet: row.wallet, remaining: row.quotaLimit - usageCount - 1, limit: row.quotaLimit };
 }
@@ -49,9 +50,9 @@ export function checkApiKey(rawKey: string | null | undefined): KeyCheckResult {
  * WITHOUT consuming a quota unit. This is what third-party servers should call
  * to gate access to their own endpoints using a Verge-issued API key.
  */
-export function introspectApiKey(rawKey: string | null | undefined): KeyCheckResult {
+export async function introspectApiKey(rawKey: string | null | undefined): Promise<KeyCheckResult> {
   if (!rawKey) return { ok: false, error: "MISSING_KEY" };
-  const row = lookupKey(rawKey);
+  const row = await lookupKey(rawKey);
   if (!row) return { ok: false, error: "INVALID_KEY" };
   if (row.revokedAt) return { ok: false, error: "KEY_REVOKED" };
 

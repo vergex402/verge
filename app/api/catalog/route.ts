@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
-import { db } from "@/app/lib/db";
+import { query } from "@/app/lib/db";
 
 export const runtime = "nodejs";
 
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vergesnowy.dev";
 
 export async function GET(_req: NextRequest) {
-  const listings = db.prepare(`SELECT id, name, url, price_usdg as price, description,
-    payment_required as paymentRequired FROM endpoints
-    WHERE revoked_at IS NULL AND health_status IN (200, 401, 402) ORDER BY created_at DESC LIMIT 100`).all();
+  const listings = await query(`SELECT id, name, url, price_usdg as price, description,
+    payment_required as "paymentRequired" FROM endpoints
+    WHERE revoked_at IS NULL AND health_status IN (200, 401, 402) ORDER BY created_at DESC LIMIT 100`);
 
   return Response.json({
     name: "Verge Gateway",

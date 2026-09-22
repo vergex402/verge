@@ -11,7 +11,7 @@ function padAddress(address: string) { return `0x${address.slice(2).padStart(64,
 
 export async function GET(req: NextRequest) {
   const jar = await cookies();
-  const wallet = sessionAddress(jar.get("verge_session")?.value);
+  const wallet = await sessionAddress(jar.get("verge_session")?.value);
   if (!wallet) return Response.json({ error: "Wallet session required" }, { status: 401 });
   try {
     const latest = parseInt(await robinhoodRpc("eth_blockNumber", []) as string, 16);
