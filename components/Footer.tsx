@@ -18,7 +18,7 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-[13px] text-gray-500 leading-relaxed max-w-[420px]">
-              Robinhood-native HTTP 402 payment rails for AI agents.
+              Multichain HTTP 402 payment rails for software and AI agents.
               <br />&copy; {new Date().getFullYear()} Verge Labs &middot; MIT Licensed
             </p>
           </div>

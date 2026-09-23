@@ -22,6 +22,9 @@ export default function NavBar() {
             <a href="#how" className="text-sm font-medium text-gray-300 transition-colors hover:text-white">
               How it works
             </a>
+            <a href="#networks" className="text-sm font-medium text-gray-300 transition-colors hover:text-white">
+              Networks
+            </a>
             <a href="#pricing" className="text-sm font-medium text-gray-300 transition-colors hover:text-white">
               Pricing
             </a>

@@ -8,13 +8,13 @@ const SITE_URL =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "Verge HTTP 402 for AI agents. Settle in 400ms.",
+  title: "Verge — Multichain HTTP 402 payment rails.",
   description:
-    "Robinhood-native facilitator for HTTP 402 micropayments. Stripe-clean SDK, 0.5% facilitator fee, USDG settled in 400ms.",
+    "Multichain HTTP 402 payment gateway for software and AI agents. USDG on Robinhood Chain; USDC across Ethereum, Base, Arbitrum, Polygon, Solana and Sui.",
   alternates: { canonical: "/" },
   openGraph: {
     title: "Verge — HTTP 402 for AI agents",
-    description: "Robinhood-native micropayments. Settled in 400ms.",
+    description: "Multichain HTTP 402 payments. USDG on Robinhood Chain; USDC across six additional supported rails.",
     type: "website",
     url: SITE_URL,
     siteName: "Verge",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Verge — HTTP 402 for AI agents",
-    description: "Robinhood-native micropayments. Settled in 400ms.",
+    description: "Multichain HTTP 402 payments. USDG on Robinhood Chain; USDC across six additional supported rails.",
     site: "@vergesnowyx402",
   },
 };

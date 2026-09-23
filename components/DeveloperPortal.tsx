@@ -94,6 +94,7 @@ export default function DeveloperPortal() {
                 <h3 className="text-xl md:text-2xl font-light text-white mb-4">
                   {content.title}
                 </h3>
+                <div className="mb-5 inline-flex rounded-full border border-white/10 px-2.5 py-1 font-mono text-[8px] tracking-[0.14em] text-white/35">ILLUSTRATIVE PREVIEW · SAMPLE VALUES</div>
                 <div className="space-y-3">
                   {content.items.map((item) => (
                     <div key={item} className="flex items-center gap-2">

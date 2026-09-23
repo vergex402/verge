@@ -2,12 +2,11 @@ import NavBar from "@/components/NavBar";
 import Hero from "@/components/Hero";
 import CodeSnippet from "@/components/CodeSnippet";
 import AgentCommerce from "@/components/AgentCommerce";
-import IntegrationMarquee from "@/components/IntegrationMarquee";
+import Ecosystem from "@/components/Ecosystem";
 import CashbackRewards from "@/components/CashbackRewards";
 import SettlementTypes from "@/components/SettlementTypes";
 import DataMonetization from "@/components/DataMonetization";
 import FrameworkCards from "@/components/FrameworkCards";
-import Ecosystem from "@/components/Ecosystem";
 import DeveloperPortal from "@/components/DeveloperPortal";
 import ContractUpgrades from "@/components/ContractUpgrades";
 import Pricing from "@/components/Pricing";
@@ -22,12 +21,11 @@ export default function Home() {
       <Hero />
       <CodeSnippet />
       <AgentCommerce />
-      <IntegrationMarquee />
+      <Ecosystem />
       <CashbackRewards />
       <SettlementTypes />
       <DataMonetization />
       <FrameworkCards />
-      <Ecosystem />
       <DeveloperPortal />
       <ContractUpgrades />
       <Pricing />

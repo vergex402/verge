@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 
 const steps = [
-  { key: "request", label: "GET /api/premium" },
+  { key: "request", label: "GET /api/demo" },
   { key: "402", label: "402 Payment Required" },
   { key: "pay", label: "Pay 0.001 USDG" },
   { key: "verify", label: "Verify on Robinhood Chain" },
-  { key: "unlocked", label: "200 · unlocked" },
+  { key: "unlocked", label: "200 · access granted" },
 ] as const;
 
 /** Small looping visual of the x402 request → challenge → pay → unlock cycle. */

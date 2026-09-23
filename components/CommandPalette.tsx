@@ -9,8 +9,11 @@ interface Command {
   action: () => void;
 }
 
-export default function CommandPalette({ commands }: { commands: Command[] }) {
-  const [open, setOpen] = useState(false);
+export default function CommandPalette({ commands, open: controlledOpen, onOpenChange }: { commands: Command[]; open?: boolean; onOpenChange?: (open: boolean) => void }) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const openRef = useRef(open);
+  const setOpen = (next: boolean) => { openRef.current = next; if (controlledOpen === undefined) setInternalOpen(next); onOpenChange?.(next); };
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -18,7 +21,7 @@ export default function CommandPalette({ commands }: { commands: Command[] }) {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((v) => !v);
+        setOpen(!openRef.current);
       }
       if (e.key === "Escape") setOpen(false);
     }
@@ -27,6 +30,7 @@ export default function CommandPalette({ commands }: { commands: Command[] }) {
   }, []);
 
   useEffect(() => {
+    openRef.current = open;
     if (open) { setQuery(""); requestAnimationFrame(() => inputRef.current?.focus()); }
   }, [open]);
 

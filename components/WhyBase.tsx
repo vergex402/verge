@@ -1,43 +1,19 @@
 import Reveal from "@/components/Reveal";
 
 const facts = [
-  { num: "400ms",   label: "Robinhood block time",   body: "Fast enough that a 402 → pay → retry round-trip feels synchronous." },
-  { num: "$0.0001", label: "Average tx fee",      body: "Stripe's network fee on a $0.001 call would be infinite. Robinhood's is zero." },
-  { num: "65k TPS", label: "Network capacity",    body: "Spawn 10,000 agent micropayments per second without queueing." },
-  { num: "1 RPC",   label: "BYO infrastructure",  body: "Plug in Alchemy, Infura, or run your own node. No Verge lock-in." },
+  { num: "07", label: "SUPPORTED RAILS", body: "Robinhood Chain, Ethereum, Base, Arbitrum, Polygon, Solana and Sui are listed in the public SDK catalog." },
+  { num: "05 + 02", label: "VIRTUAL MACHINES", body: "Five EVM networks plus Solana’s SVM and Sui’s Move-based network." },
+  { num: "USDG · USDC", label: "SETTLEMENT ASSETS", body: "USDG on the Robinhood flagship rail; USDC across the six additional supported rails." },
+  { num: "Express · Hono", label: "PUBLISHED SDK MIDDLEWARE", body: "Use the Verge packages in existing server apps, or integrate against the public HTTP gateway." },
 ];
 
 export default function WhyBase() {
   return (
-    <section className="bg-[#171719] py-20 md:py-32 relative z-20">
-      <div className="max-w-7xl mx-auto px-3 md:px-5 lg:px-8">
-        <Reveal>
-          <div className="max-w-[680px] mb-12 md:mb-14">
-            <h2 className="text-2xl md:text-4xl lg:text-5xl font-light text-white mb-3 md:mb-5">
-              Other chains are too slow{" "}
-              <br className="hidden sm:block" />
-              <span className="text-gray-400">or too expensive.</span>
-            </h2>
-            <p className="text-gray-400 text-sm md:text-base">
-              x402 is interesting on every chain. It&rsquo;s only{" "}
-              <em className="text-emerald-400 not-italic font-medium">useful</em> on Robinhood.
-            </p>
-          </div>
-        </Reveal>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {facts.map((f, i) => (
-            <Reveal key={f.label} delay={i * 100}>
-              <div className="bg-[#1B1B1C] rounded-[20px] p-6 border border-[#2a2a2e]">
-                <div className="text-emerald-400 text-[clamp(34px,4vw,48px)] font-light mb-3 leading-none">{f.num}</div>
-                <div className="font-mono text-[10px] tracking-[0.22em] uppercase text-gray-500 mb-3">
-                  {f.label}
-                </div>
-                <p className="text-[14px] text-gray-400 leading-relaxed">{f.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
+    <section className="relative overflow-hidden bg-[#101211] py-20 md:py-28">
+      <div aria-hidden className="pointer-events-none absolute left-1/2 top-0 size-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-300/[0.035] blur-3xl"/>
+      <div className="relative mx-auto max-w-7xl px-5 md:px-8">
+        <Reveal><div className="mb-10 max-w-2xl md:mb-12"><div className="mb-3 font-mono text-[10px] tracking-[0.18em] text-emerald-200/50">OPEN BY DESIGN</div><h2 className="text-3xl font-light tracking-[-0.04em] text-white md:text-5xl">One payment flow.<br/><span className="text-white/45">Built for more than one chain.</span></h2><p className="mt-4 max-w-xl text-sm leading-6 text-white/45">Use Verge’s SDK registry to select a settlement rail, then wire a paid endpoint into your application with the framework that already fits.</p></div></Reveal>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{facts.map((fact, i) => <Reveal key={fact.label} delay={i*65}><article className="h-full rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 transition hover:border-emerald-200/15"><div className="font-mono text-2xl font-light tracking-tight text-emerald-100/80 md:text-[28px]">{fact.num}</div><div className="mt-4 font-mono text-[9px] tracking-[0.16em] text-white/35">{fact.label}</div><p className="mt-3 text-xs leading-5 text-white/50">{fact.body}</p></article></Reveal>)}</div>
       </div>
     </section>
   );

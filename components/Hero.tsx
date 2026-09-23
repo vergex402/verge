@@ -7,11 +7,11 @@ const WORDS = ["agent", "machine", "robot", "AI", "API"];
 function ContractButton() {
   return (
     <div className="flex flex-col items-center gap-3 pointer-events-auto">
-      <div className="flex items-center gap-2 bg-emerald-500 text-black px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl font-semibold text-sm sm:text-base shadow-lg shadow-emerald-500/25">
-        <span className="text-black/60 text-xs sm:text-sm font-mono">CA:</span>
-        <span className="font-mono tracking-tight">Cooming soon</span>
-      </div>
-      <a
+    <div className="rounded-xl border border-white/10 bg-[#171719]/85 px-4 py-2.5 text-xs text-white/55 backdrop-blur">
+      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-white/35">Token contract</span>
+      <span className="ml-3 text-white/65">Coming soon</span>
+    </div>
+    <a
         href="https://ponsralph.xyz"
         target="_blank"
         rel="noopener noreferrer"

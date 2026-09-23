@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import { useSignMessage, useBalance, useReadContract } from "wagmi";
 import { formatUnits } from "viem";
@@ -8,53 +9,56 @@ import WalletButton from "@/components/WalletButton";
 import Sidebar from "@/components/Sidebar";
 import MobileTabBar from "@/components/MobileTabBar";
 import CommandPalette from "@/components/CommandPalette";
-import Sparkline from "@/components/Sparkline";
+import AppIcon from "@/components/AppIcon";
+import RailDirectory, { useSupportedRails } from "@/components/RailDirectory";
 import PaymentFlowMini from "@/components/PaymentFlowMini";
 
 const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as const;
-const erc20Abi = [{
-  type: "function", name: "balanceOf", stateMutability: "view",
-  inputs: [{ name: "account", type: "address" }],
-  outputs: [{ name: "", type: "uint256" }],
-}] as const;
+const erc20Abi = [{ type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
+type Tab = "Overview" | "Transactions" | "Marketplace" | "Receipts" | "API Keys" | "Networks";
+type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
+type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number };
+type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null };
+type Metrics = { endpoints: number; discoveryHits: number; paidCalls: number; settlementVolume: number };
 
-const tabs = ["Transactions", "Marketplace", "Receipts", "API Keys"] as const;
-type Tab = (typeof tabs)[number];
+async function getData(path: string) {
+  const response = await fetch(path, { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+  return data;
+}
 
-function EmptyState({ tab, authorized, onGenerate }: { tab: Tab; authorized: boolean; onGenerate: () => void }) {
-  const copy: Record<Tab, { title: string; body: string }> = {
-    Transactions: { title: "No transactions yet", body: "Settled USDG transfers to your merchant wallet will appear here." },
-    Marketplace: { title: "Marketplace is ready for listings", body: "Connect an endpoint and publish its x402 price to make it discoverable." },
-    Receipts: { title: "No receipts yet", body: "Every verified Robinhood Chain settlement will produce a receipt here." },
-    "API Keys": { title: "API keys are wallet-scoped", body: "Key issuance is protected behind wallet authentication and will never expose a private key in the browser." },
-  };
-  return (
-    <div className="rounded-2xl border border-[#2a2a2e] bg-[#171719] p-8 text-center">
-      <div className="text-white font-medium mb-2">{copy[tab].title}</div>
-      <p className="text-sm text-gray-500 max-w-md mx-auto">{copy[tab].body}</p>
-      {tab === "API Keys" && authorized && <button type="button" onClick={onGenerate} className="btn btn-primary mt-5">Generate API key</button>}
-      {tab === "API Keys" && !authorized && <p className="text-xs text-amber-400 mt-5">Authorize this wallet above to manage keys.</p>}
-    </div>
-  );
+function PageHeading({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) {
+  return <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><div className="mb-2 font-mono text-[9px] font-medium tracking-[0.2em] text-emerald-200/55">{eyebrow}</div><h1 className="text-2xl font-medium tracking-[-0.04em] text-white md:text-[30px]">{title}</h1><p className="mt-1.5 max-w-2xl text-xs leading-5 text-white/40 md:text-sm">{description}</p></div>{action}</div>;
+}
+
+function StatCard({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: string }) {
+  return <article className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5"><div className="flex items-center justify-between gap-3"><span className="text-[11px] text-white/45">{label}</span><span className="flex size-8 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.025] text-emerald-200/65"><AppIcon name={icon} size={15}/></span></div><div className="mt-4 truncate text-xl font-medium tracking-tight text-white">{value}</div><div className="mt-1.5 text-[10px] text-white/30">{detail}</div></article>;
+}
+
+function TableEmpty({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
+  return <div className="rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.012] px-5 py-12 text-center"><div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.025] text-white/40"><AppIcon name="overview" size={18}/></div><div className="text-sm font-medium text-white/75">{title}</div><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-white/40">{description}</p>{action && <div className="mt-5">{action}</div>}</div>;
 }
 
 export default function WalletDashboard() {
   const { address, isConnected } = useAppKitAccount();
   const { chainId } = useAppKitNetwork();
-
   const onRobinhood = chainId === 4663;
   const addr = address as `0x${string}` | undefined;
-
   const { signMessageAsync } = useSignMessage();
-  const [active, setActive] = useState<Tab>("Transactions");
-  const [authorized, setAuthorized] = useState(false);
+  const rails = useSupportedRails();
+  const [active, setActive] = useState<Tab>("Overview");
+  const [sessionAddress, setSessionAddress] = useState("");
+  const authorized = Boolean(addr && sessionAddress.toLowerCase() === addr.toLowerCase());
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   const [newKey, setNewKey] = useState("");
-  const [activity, setActivity] = useState<any[]>([]);
+  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [activity, setActivity] = useState<Activity[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState("");
-  const [listings, setListings] = useState<any[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [listingName, setListingName] = useState("");
   const [listingUrl, setListingUrl] = useState("");
   const [listingPrice, setListingPrice] = useState("0.001");
@@ -62,22 +66,31 @@ export default function WalletDashboard() {
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
-  const usdg = useReadContract({
-    address: USDG, abi: erc20Abi, functionName: "balanceOf",
-    args: addr ? [addr] : undefined,
-    chainId: 4663,
-    query: { enabled: Boolean(addr) && onRobinhood },
-  });
+  const usdg = useReadContract({ address: USDG, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (!authorized || !onRobinhood || (active !== "Transactions" && active !== "Receipts" && active !== "Marketplace")) return;
+    if (active !== "Marketplace" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
-    fetch(active === "Marketplace" ? "/api/marketplace" : active === "Receipts" ? "/api/receipts" : "/api/transactions")
-      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "error"); return d; })
-      .then((d) => { if (!cancelled) { setActivity(d.transactions || []); setListings(d.endpoints || []); } })
-      .catch((e) => { if (!cancelled) setActivityError(e instanceof Error ? e.message : "Could not load activity"); })
-      .finally(() => { if (!cancelled) setActivityLoading(false); });
+    const load = async () => {
+      try {
+        if (active === "Overview") {
+          const [analytics, tx, market] = await Promise.all([getData("/api/merchant/analytics"), getData("/api/transactions"), getData("/api/marketplace")]);
+          if (!cancelled) { setMetrics(analytics.metrics); setActivity(tx.transactions || []); setListings(market.endpoints || []); }
+        } else if (active === "Transactions" || active === "Receipts") {
+          const data = await getData(active === "Receipts" ? "/api/receipts" : "/api/transactions");
+          if (!cancelled) setActivity(data.transactions || []);
+        } else if (active === "Marketplace") {
+          const data = await getData("/api/marketplace");
+          if (!cancelled) setListings(data.endpoints || []);
+        } else if (active === "API Keys") {
+          const data = await getData("/api/keys");
+          if (!cancelled) setKeys(data.keys || []);
+        }
+      } catch (error) { if (!cancelled) setActivityError(error instanceof Error ? error.message : "Could not load workspace data"); }
+      finally { if (!cancelled) setActivityLoading(false); }
+    };
+    void load();
     return () => { cancelled = true; };
   }, [active, authorized, onRobinhood]);
 
@@ -85,188 +98,102 @@ export default function WalletDashboard() {
     if (!addr || authBusy) return;
     setAuthBusy(true); setAuthError("");
     try {
-      const challengeRes = await fetch(`/api/auth/challenge?address=${addr}`);
-      const challenge = await challengeRes.json();
+      const challenge = await getData(`/api/auth/challenge?address=${addr}`);
       const signature = await signMessageAsync({ message: challenge.message });
-      const res = await fetch("/api/auth/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: addr, message: challenge.message, signature }) });
-      if (!res.ok) throw new Error((await res.json()).error || "Authorization failed");
-      setAuthorized(true);
-    } catch (e) { setAuthError(e instanceof Error ? e.message : "Cancelled"); }
+      const response = await fetch("/api/auth/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: addr, message: challenge.message, signature }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Authorization failed");
+      setSessionAddress(addr); setActive("Overview");
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Signature cancelled"); }
     finally { setAuthBusy(false); }
   }, [addr, authBusy, signMessageAsync]);
 
   const generateKey = useCallback(async () => {
-    const r = await fetch("/api/keys", { method: "POST" });
-    const d = await r.json();
-    if (r.ok) { setNewKey(d.key); setActive("API Keys"); }
-    else setAuthError(d.error || "Could not generate key");
+    try { const response = await fetch("/api/keys", { method: "POST" }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not create key"); setNewKey(data.key); const list = await getData("/api/keys"); setKeys(list.keys || []); setAuthError(""); }
+    catch (error) { setAuthError(error instanceof Error ? error.message : "Could not create key"); }
   }, []);
 
-  async function publishListing(e: React.FormEvent) {
-    e.preventDefault();
-    const r = await fetch("/api/marketplace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: listingName, url: listingUrl, price: listingPrice, network: listingNetwork }) });
-    const d = await r.json();
-    if (!r.ok) { setAuthError(d.error || "Could not publish"); return; }
-    setListings((cur) => [d, ...cur]); setListingName(""); setListingUrl("");
+  const revokeKey = useCallback(async (id: string) => {
+    try { const response = await fetch(`/api/keys?id=${encodeURIComponent(id)}`, { method: "DELETE" }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not revoke key"); setKeys((current) => current.map((key) => key.id === id ? { ...key, revokedAt: new Date().toISOString() } : key)); }
+    catch (error) { setAuthError(error instanceof Error ? error.message : "Could not revoke key"); }
+  }, []);
+
+  async function publishListing(event: React.FormEvent) {
+    event.preventDefault(); setAuthError("");
+    try { const response = await fetch("/api/marketplace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: listingName, url: listingUrl, price: listingPrice, network: listingNetwork }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not publish endpoint"); setListings((current) => [data, ...current]); setListingName(""); setListingUrl(""); }
+    catch (error) { setAuthError(error instanceof Error ? error.message : "Could not publish endpoint"); }
   }
 
   const commands = [
-    { id: "nav-tx", label: "Go to Transactions", hint: "Nav", action: () => setActive("Transactions") },
-    { id: "nav-mp", label: "Go to Marketplace", hint: "Nav", action: () => setActive("Marketplace") },
-    { id: "nav-rc", label: "Go to Receipts", hint: "Nav", action: () => setActive("Receipts") },
-    { id: "nav-key", label: "Go to API Keys", hint: "Nav", action: () => setActive("API Keys") },
-    { id: "gen-key", label: "Generate API key", hint: "Action", action: () => { generateKey(); } },
+    { id: "nav-overview", label: "Go to Overview", hint: "Workspace", action: () => setActive("Overview") },
+    { id: "nav-tx", label: "Go to Transactions", hint: "Workspace", action: () => setActive("Transactions") },
+    { id: "nav-mp", label: "Go to Marketplace", hint: "Workspace", action: () => setActive("Marketplace") },
+    { id: "nav-rc", label: "Go to Receipts", hint: "Workspace", action: () => setActive("Receipts") },
+    { id: "nav-key", label: "Manage API keys", hint: "Developer", action: () => setActive("API Keys") },
+    { id: "nav-net", label: "Explore payment rails", hint: "Developer", action: () => setActive("Networks") },
+    { id: "gen-key", label: "Generate API key", hint: "Action", action: () => { setActive("API Keys"); if (authorized) void generateKey(); } },
     { id: "docs", label: "Open documentation", hint: "↗", action: () => window.open("/docs", "_blank") },
     { id: "catalog", label: "Open API catalog", hint: "↗", action: () => window.open("/api/catalog", "_blank") },
   ];
 
-  if (!isConnected) return (
-    <main className="min-h-screen bg-[#171719] text-white">
-      <header className="border-b border-[#2a2a2e] bg-[#171719]/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3"><span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]" /><span className="font-mono text-sm tracking-[0.18em] text-white">VERGE</span><span className="hidden sm:inline text-xs text-gray-500 border-l border-[#3a3a3e] pl-3">PUBLIC GATEWAY</span></a>
-          <WalletButton />
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-5 md:px-8 py-10 md:py-16">
-        <div className="flex flex-col gap-3 mb-6"><div className="font-mono text-[11px] tracking-[0.2em] text-emerald-400 uppercase">Open payment infrastructure</div><h1 className="text-4xl md:text-6xl font-light tracking-tight">Gateway for paid agent endpoints.</h1><p className="max-w-2xl text-gray-400 text-base md:text-lg leading-relaxed">Discover USDG-priced APIs, inspect the x402 flow, then connect a wallet only when you want to publish an endpoint or create a key.</p></div>
-
-        <div className="mb-10 rounded-2xl border border-[#2a2a2e] bg-[#1B1B1C] px-5 py-4 overflow-x-auto">
-          <div className="text-[11px] font-mono text-gray-500 uppercase tracking-wider mb-3">Live x402 flow</div>
-          <PaymentFlowMini />
-        </div>
-
-        <div className="grid lg:grid-cols-[1.45fr_0.8fr] gap-5">
-          <section className="rounded-[24px] border border-[#2a2a2e] overflow-hidden bg-[#1B1B1C]">
-            <div className="flex items-center justify-between px-5 md:px-7 py-5 border-b border-[#2a2a2e]"><div><div className="text-white font-medium">Gateway catalog</div><div className="text-sm text-gray-500 mt-1">Public x402-compatible surfaces</div></div><span className="font-mono text-xs text-emerald-400">LIVE / 4663</span></div>
-            <div className="p-4 md:p-5 grid gap-3">
-              <a href="/api/demo" target="_blank" className="group rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5 hover:border-emerald-500/50 transition-colors"><div className="flex items-start justify-between gap-5"><div><div className="font-mono text-xs text-emerald-400 mb-3">GET /api/demo</div><div className="text-white text-lg">USDG payment challenge</div><p className="text-sm text-gray-500 mt-2 max-w-lg">Inspect a real HTTP 402 response, then replay with a verified Robinhood Chain transaction.</p></div><span className="text-gray-500 group-hover:text-emerald-400">↗</span></div><div className="mt-5 flex gap-2"><span className="rounded-md bg-amber-500/10 px-2 py-1 font-mono text-[11px] text-amber-400">402 REQUIRED</span><span className="rounded-md bg-emerald-500/10 px-2 py-1 font-mono text-[11px] text-emerald-400">USDG</span></div></a>
-              <a href="/docs" className="group rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5 hover:border-emerald-500/50 transition-colors"><div className="flex items-start justify-between gap-5"><div><div className="font-mono text-xs text-emerald-400 mb-3">SDK / DOCUMENTATION</div><div className="text-white text-lg">Ship a paid endpoint</div><p className="text-sm text-gray-500 mt-2 max-w-lg">Express or Hono middleware, Robinhood Chain configuration, receipt verification, and replay-safe payment handling.</p></div><span className="text-gray-500 group-hover:text-emerald-400">↗</span></div></a>
-              <a href="/api/catalog" target="_blank" className="group rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5 hover:border-emerald-500/50 transition-colors"><div className="flex items-start justify-between gap-5"><div><div className="font-mono text-xs text-emerald-400 mb-3">GET /api/catalog</div><div className="text-white text-lg">Machine-readable discovery</div><p className="text-sm text-gray-500 mt-2 max-w-lg">A public JSON catalog for agents to discover Verge gateway capabilities and registered surfaces.</p></div><span className="text-gray-500 group-hover:text-emerald-400">↗</span></div></a>
-            </div>
-            <div className="px-4 md:px-5 pb-5 pt-1 grid sm:grid-cols-2 gap-3">
-              <a href="https://www.npmjs.com/package/@vergex402/express" target="_blank" rel="noreferrer" className="group flex items-center justify-between rounded-xl border border-[#2a2a2e] bg-[#171719] px-4 py-3 hover:border-emerald-500/50 transition-colors"><div><div className="text-white text-sm">@vergex402/express</div><div className="text-xs text-gray-500 mt-0.5">Express middleware on npm</div></div><span className="text-gray-500 group-hover:text-emerald-400 text-sm">↗</span></a>
-              <a href="https://www.npmjs.com/package/@vergex402/hono" target="_blank" rel="noreferrer" className="group flex items-center justify-between rounded-xl border border-[#2a2a2e] bg-[#171719] px-4 py-3 hover:border-emerald-500/50 transition-colors"><div><div className="text-white text-sm">@vergex402/hono</div><div className="text-xs text-gray-500 mt-0.5">Hono middleware on npm</div></div><span className="text-gray-500 group-hover:text-emerald-400 text-sm">↗</span></a>
-            </div>
-          </section>
-
-          <aside className="flex flex-col gap-5">
-            <section className="rounded-[24px] border border-emerald-500/25 bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.15),transparent_55%),#1B1B1C] p-6 md:p-7"><div className="font-mono text-[11px] tracking-[0.2em] text-emerald-400 uppercase">Builder access</div><h2 className="text-2xl font-light text-white mt-4">Connect when you are ready to build.</h2><p className="text-sm text-gray-400 leading-relaxed mt-3">A wallet is only required to publish a listing, view wallet receipts, or generate a scoped API key. No email. No password.</p><WalletButton className="mt-6 w-full" /><p className="text-xs text-gray-500 mt-4">WalletConnect · Reown · Robinhood Chain 4663</p></section>
-            <section className="rounded-[24px] border border-[#2a2a2e] bg-[#1B1B1C] p-6"><div className="flex items-center justify-between"><span className="text-sm text-gray-400">Payment rails</span><span className="size-2 rounded-full bg-emerald-400" /></div><div className="text-xl text-white mt-4">Robinhood is the flagship.</div><div className="font-mono text-xs text-emerald-400 mt-2">4663 · USDG · EVM</div><div className="mt-5 pt-5 border-t border-[#2a2a2e] grid grid-cols-3 gap-2 text-[10px] font-mono text-gray-500"><span>ETHEREUM<br/><b className="text-gray-300">USDC · 1</b></span><span>BASE<br/><b className="text-gray-300">USDC · 8453</b></span><span>ARBITRUM<br/><b className="text-gray-300">USDC · 42161</b></span><span>POLYGON<br/><b className="text-gray-300">USDC · 137</b></span><span>SOLANA<br/><b className="text-gray-300">USDC · SVM</b></span><span>SUI<br/><b className="text-gray-300">USDC · Move</b></span></div></section>
-          </aside>
-        </div>
-      </div>
-    </main>
-  );
-
-  if (!onRobinhood) return (
-    <main className="min-h-screen bg-[#171719] text-white flex items-center justify-center px-6">
-      <div className="max-w-lg text-center">
-        <div className="font-mono text-xs tracking-[0.2em] text-amber-400 uppercase mb-5">Wrong network</div>
-        <h1 className="text-3xl md:text-5xl font-light mb-5">Switch to Robinhood Chain</h1>
-        <p className="text-gray-400 mb-8">
-          Your wallet is on chain <span className="font-mono text-amber-400">{chainId}</span>. Verge runs on Robinhood Chain <span className="font-mono text-emerald-400">4663</span>.
-        </p>
-        <WalletButton className="mx-auto" />
-        <a href="/" className="block mt-6 text-sm text-gray-500 hover:text-gray-300">← Back to Verge</a>
-      </div>
-    </main>
-  );
-
-  const usdgBalance = usdg.data == null ? null : Number(usdg.data) / 1e6;
-  const usdgDisplay = usdgBalance == null ? "—" : `${usdgBalance.toFixed(4)} USDG`;
+  const usdgDisplay = usdg.data == null ? "—" : `${(Number(usdg.data) / 1e6).toFixed(4)} USDG`;
   const ethDisplay = eth.data ? `${Number(formatUnits(eth.data.value, eth.data.decimals)).toFixed(5)} ETH` : "—";
+  const changeActive = (key: string) => setActive(key as Tab);
 
-  // Lightweight trend from recent activity — enough for a sparkline, no separate metrics API needed.
-  const usdgTrend = activity.length >= 2
-    ? activity.slice(0, 8).reverse().reduce<number[]>((acc, tx) => [...acc, (acc[acc.length - 1] || 0) + (tx.amount || 0)], [usdgBalance ? usdgBalance - activity.reduce((s: number, t: any) => s + (t.amount || 0), 0) : 0])
-    : (usdgBalance != null ? [usdgBalance, usdgBalance] : [0, 0]);
+  const shellHeader = <header className="sticky top-0 z-20 flex min-h-[66px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#0d0f0e]/90 px-4 backdrop-blur-xl md:px-8"><div className="min-w-0"><div className="hidden text-[9px] font-mono tracking-[0.15em] text-white/30 md:block">VERGE <span className="px-1 text-white/15">/</span> WORKSPACE</div><div className="mt-0.5 truncate text-sm font-medium text-white/85 md:hidden">{active}</div><div className="hidden text-[11px] text-white/35 md:block">{active}</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => setPaletteOpen(true)} className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[11px] text-white/40 transition hover:border-white/15 hover:text-white/75 lg:flex"><AppIcon name="search" size={14}/>Search <kbd className="ml-5 rounded border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/30">⌘K</kbd></button><span className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[10px] text-white/50 sm:inline-flex"><span className="size-1.5 rounded-full bg-emerald-300"/>Robinhood · 4663</span><WalletButton className="!rounded-xl !px-3 !py-2 !text-[11px]"/></div></header>;
 
-  return (
-    <main className="min-h-screen bg-[#171719] text-white flex">
-      <Sidebar active={active} onSelect={(k) => setActive(k as Tab)} onOpenPalette={() => setPaletteOpen(true)} />
-      <CommandPalette commands={commands} />
+  const mainContent = () => {
+    if (active === "Networks") return <><PageHeading eyebrow="NETWORK REGISTRY" title="Payment rails." description="The supported rails exposed by the public Verge SDK catalog, with settlement assets and token references for each network."/><RailDirectory/></>;
+    if (!isConnected && active === "Marketplace") return <><PageHeading eyebrow="PUBLIC DIRECTORY" title="Marketplace." description="Browse the verified endpoint directory. Connect a wallet on Robinhood Chain to publish your own listing." action={<WalletButton className="!rounded-xl !px-3 !py-2 !text-[11px]"/>}/>{activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading public listings…</div> : activityError ? <p className="text-xs text-rose-300">{activityError}</p> : listings.length === 0 ? <TableEmpty title="No verified endpoints listed yet" description="The public directory is ready for paid API endpoints." action={<a href="/api/catalog" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-200/70">Open the machine-readable catalog ↗</a>}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{listings.map((item) => <article key={item.id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><h2 className="text-sm font-medium text-white/85">{item.name}</h2><a href={item.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-[10px] text-white/35">{item.url}</a><div className="mt-4 flex justify-between border-t border-white/[0.06] pt-3 text-[10px]"><span className="text-white/40">{item.network || "robinhood-mainnet"}</span><span className="text-white/75">{Number(item.price).toFixed(6)} {item.asset || "USDG"}</span></div></article>)}</div>}</>;
+    if (!isConnected && active !== "Overview") return <><PageHeading eyebrow="WALLET WORKSPACE" title={active + "."} description="Connect a wallet on Robinhood Chain to access private workspace tools."/><TableEmpty title="Connect your wallet to continue" description="Your wallet is your account. Sign one gas-free message to open private activity and developer controls." action={<WalletButton className="!rounded-xl !px-4 !py-2.5 !text-xs"/>}/></>;
+    if (!isConnected) return <>
+      <PageHeading eyebrow="OPEN GATEWAY · MULTICHAIN" title="Your payment workspace." description="Explore Verge’s payment rails, test the gateway, and connect a wallet only when you want to publish endpoints or manage credentials." action={<a href="/docs" className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-xs text-white/65 transition hover:border-white/20 hover:text-white">Developer docs <AppIcon name="arrow" size={13}/></a>}/>
+      <section className="relative mb-5 overflow-hidden rounded-[24px] border border-emerald-200/15 bg-[linear-gradient(125deg,rgba(52,211,153,.11),rgba(255,255,255,.025)_55%,rgba(52,211,153,.035))] p-5 md:p-8"><div aria-hidden className="absolute -right-12 -top-24 size-72 rounded-full bg-emerald-300/[0.06] blur-3xl"/><div className="relative max-w-3xl"><div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/15 bg-black/10 px-3 py-1.5 font-mono text-[9px] tracking-[0.14em] text-emerald-100/70"><span className="size-1.5 rounded-full bg-emerald-300"/>X402 PAYMENT INFRASTRUCTURE</div><h2 className="mt-5 max-w-2xl text-2xl font-medium tracking-[-0.04em] text-white md:text-4xl">Let software pay for what it uses.</h2><p className="mt-3 max-w-xl text-xs leading-6 text-white/50 md:text-sm">Monetize APIs with HTTP 402 and settle across seven supported payment rails. No account wall to explore. Wallet access is reserved for your workspace actions.</p><div className="mt-6 flex flex-wrap gap-2"><WalletButton className="!rounded-xl !px-4 !py-2.5 !text-xs"/><a href="/api/demo" target="_blank" rel="noreferrer" className="rounded-xl border border-white/10 bg-black/10 px-4 py-2.5 text-xs text-white/70 transition hover:border-white/20 hover:text-white">Try the 402 demo <AppIcon name="arrow" size={12} className="ml-1 inline"/></a></div></div></section>
+      <section className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5"><div className="mb-3 flex items-center justify-between"><div><div className="text-xs font-medium text-white/80">Example payment flow</div><div className="mt-1 text-[10px] text-white/35">A simplified request → settlement → access sequence</div></div><span className="rounded-full border border-white/[0.08] px-2 py-1 font-mono text-[8px] tracking-wider text-white/35">ILLUSTRATIVE</span></div><div className="overflow-x-auto"><PaymentFlowMini/></div></section>
+      <div className="mb-5 grid gap-3 sm:grid-cols-3"><button onClick={() => setActive("Marketplace")} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4 text-left transition hover:border-white/15"><div className="flex size-9 items-center justify-center rounded-xl bg-emerald-300/[0.08] text-emerald-200"><AppIcon name="marketplace" size={17}/></div><div className="mt-4 text-sm font-medium text-white/85">Discover endpoints</div><div className="mt-1 text-[11px] text-white/40">Browse public x402 listings.</div></button><a href="/docs" className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4 transition hover:border-white/15"><div className="flex size-9 items-center justify-center rounded-xl bg-white/[0.04] text-white/55"><AppIcon name="docs" size={17}/></div><div className="mt-4 text-sm font-medium text-white/85">Integrate the SDK</div><div className="mt-1 text-[11px] text-white/40">Express and Hono quickstarts.</div></a><button onClick={authorize} disabled={!onRobinhood || authBusy} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4 text-left transition hover:border-emerald-200/20 disabled:cursor-not-allowed disabled:opacity-50"><div className="flex size-9 items-center justify-center rounded-xl bg-white/[0.04] text-white/55"><AppIcon name="key" size={17}/></div><div className="mt-4 text-sm font-medium text-white/85">Open your workspace</div><div className="mt-1 text-[11px] text-white/40">Sign once to publish and manage keys.</div></button></div>
+      <section className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-6"><div className="mb-5 flex items-end justify-between gap-4"><div><div className="text-sm font-medium text-white/85">Payment rails</div><div className="mt-1 text-[11px] text-white/40">Configured from Verge’s public SDK registry.</div></div><button onClick={() => setActive("Networks")} className="shrink-0 text-[10px] text-emerald-200/70 hover:text-emerald-100">Full network details →</button></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">{rails.map((rail) => <div key={rail.id} className="flex flex-col items-center rounded-xl border border-white/[0.06] bg-black/10 p-3 text-center"><img src={({"robinhood-mainnet":"/logos/robinhood.jpg","ethereum-mainnet":"/chains/ethereum.png","base-mainnet":"/chains/base.png","arbitrum-mainnet":"/chains/arbitrum.png","polygon-mainnet":"/chains/polygon.svg","solana-mainnet":"/chains/solana.png","sui-mainnet":"/chains/sui.png"} as Record<string,string>)[rail.id]} alt="" className="mb-2 size-7 object-contain"/><span className="max-w-full truncate text-[10px] text-white/65">{rail.name}</span><span className="mt-1 font-mono text-[9px] text-white/35">{rail.asset}</span></div>)}</div></section>
+      {authError && <p className="mt-4 text-xs text-rose-300">{authError}</p>}
+    </>;
 
-      <div className="flex-1 min-w-0">
-        <MobileTabBar active={active} onSelect={(k) => setActive(k as Tab)} />
+    if (!onRobinhood && active !== "Marketplace") return <>
+      <PageHeading eyebrow="NETWORK REQUIRED" title="Switch to Robinhood Chain." description="The public gateway and seven-rail catalog remain available. Wallet-scoped workspace data currently reads from Robinhood Chain (4663)."/>
+      <div className="mb-5 rounded-2xl border border-amber-200/15 bg-amber-100/[0.04] p-5"><div className="flex items-start gap-3"><span className="mt-0.5 flex size-9 items-center justify-center rounded-xl bg-amber-200/[0.08] text-amber-100/75"><AppIcon name="network" size={17}/></span><div><div className="text-sm font-medium text-white/85">Connected to chain {chainId}</div><p className="mt-1 max-w-xl text-xs leading-5 text-white/45">Switch the connected EVM wallet to Robinhood Chain 4663 to access balances, transactions, endpoint publishing, receipts, and API keys.</p><div className="mt-4"><WalletButton className="!rounded-xl !px-4 !py-2.5 !text-xs"/></div></div></div></div><RailDirectory/>
+    </>;
 
-        <div className="px-4 py-6 md:px-8 md:py-8 max-w-6xl mx-auto">
-          <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-light">{active}</h1>
-              <p className="text-gray-500 text-sm mt-1">Robinhood Chain · USDG · wallet-authenticated</p>
-            </div>
-            <div className="md:hidden"><WalletButton /></div>
-            <div className="hidden md:block"><WalletButton /></div>
-          </header>
-
-          {!authorized && (
-            <section className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div><div className="text-white font-medium">Authorize this wallet</div><div className="text-sm text-gray-500 mt-1">One signature, no gas. Unlocks wallet-scoped portal actions.</div></div>
-              <button type="button" onClick={authorize} disabled={authBusy} className="btn btn-primary">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>
-            </section>
-          )}
-          {authError && <div className="mb-6 text-sm text-red-400">{authError}</div>}
-
-          <section className="mb-6 rounded-2xl border border-[#2a2a2e] bg-[#1B1B1C] px-5 py-4 overflow-x-auto">
-            <div className="text-[11px] font-mono text-gray-500 uppercase tracking-wider mb-3">Live x402 flow</div>
-            <PaymentFlowMini />
-          </section>
-
-          <section className="grid sm:grid-cols-3 gap-4 mb-8">
-            <div className="card">
-              <div className="text-gray-500 text-xs uppercase tracking-wider">Wallet</div>
-              <div className="font-mono text-sm mt-3 text-emerald-400 break-all">{addr}</div>
-            </div>
-            <div className="card">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-gray-500 text-xs uppercase tracking-wider">USDG balance</div>
-                  <div className="text-2xl mt-3">{usdgDisplay}</div>
-                </div>
-                <Sparkline data={usdgTrend} className="w-16 h-8 mt-1" />
-              </div>
-            </div>
-            <div className="card"><div className="text-gray-500 text-xs uppercase tracking-wider">Gas balance</div><div className="text-2xl mt-3">{ethDisplay}</div></div>
-          </section>
-
-          <section className="card p-0 overflow-hidden">
-            <div className="p-5 md:p-8">
-              {active === "Marketplace" && authorized ? (
-                <div className="rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5">
-                  <div className="text-white font-medium mb-4">Live endpoint marketplace</div>
-                  <form onSubmit={publishListing} className="grid md:grid-cols-5 gap-3 mb-6">
-                    <input required value={listingName} onChange={(e) => setListingName(e.target.value)} placeholder="Endpoint name" className="input-dark" />
-                    <input required type="url" value={listingUrl} onChange={(e) => setListingUrl(e.target.value)} placeholder="https://api.example.com" className="input-dark" />
-                    <input required type="number" min="0" step="0.000001" value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Stablecoin / call" className="input-dark" />
-                    <select value={listingNetwork} onChange={(e) => setListingNetwork(e.target.value)} className="input-dark appearance-none cursor-pointer">
-                      <option value="robinhood-mainnet">Robinhood · USDG</option>
-                      <option value="ethereum-mainnet">Ethereum · USDC</option>
-                      <option value="base-mainnet">Base · USDC</option>
-                      <option value="arbitrum-mainnet">Arbitrum · USDC</option>
-                      <option value="polygon-mainnet">Polygon · USDC</option>
-                      <option value="solana-mainnet">Solana · USDC</option>
-                      <option value="sui-mainnet">Sui · USDC</option>
-                    </select>
-                    <button type="submit" className="btn btn-primary">Publish</button>
-                  </form>
-                  {listings.length === 0 ? <div className="text-sm text-gray-500 py-8 text-center">No public endpoints yet.</div> : <div className="space-y-2">{listings.map((item) => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#1B1B1C] px-4 py-3 hover:border-emerald-500/30 border border-transparent"><div className="flex justify-between gap-3"><span className="text-white">{item.name}</span><span className="text-emerald-400">{item.price} {item.asset || "USDG"}</span></div><div className="flex justify-between gap-3 text-xs text-gray-500 mt-1"><span className="truncate">{item.url}</span><span className="shrink-0">{(item.network || "robinhood-mainnet").replace("-mainnet", "")}</span></div></a>)}</div>}
-                </div>
-              ) : (active === "Transactions" || active === "Receipts") && authorized ? (
-                <div className="rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5">
-                  <div className="flex items-center justify-between mb-4"><div className="text-white font-medium">Live USDG {active.toLowerCase()}</div><div className="text-xs text-gray-500">Robinhood Chain 4663</div></div>
-                  {activityLoading && <div className="text-sm text-gray-500 py-8 text-center">Reading Transfer events…</div>}
-                  {activityError && <div className="text-sm text-red-400 py-8 text-center">{activityError}</div>}
-                  {!activityLoading && !activityError && activity.length === 0 && <div className="text-sm text-gray-500 py-8 text-center">No confirmed USDG transfers found in the recent scan window.</div>}
-                  <div className="space-y-2">{activity.map((tx) => <a key={tx.hash + tx.block} href={tx.explorer} target="_blank" rel="noreferrer" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#1B1B1C] px-4 py-3 text-sm hover:border-emerald-500/30 border border-transparent"><span className="font-mono text-emerald-400">{tx.hash.slice(0, 10)}…{tx.hash.slice(-8)}</span><span className="text-white">{tx.amount.toFixed(4)} USDG</span><span className="text-gray-500">block {tx.block}</span><span className="text-emerald-400">confirmed</span></a>)}</div>
-                </div>
-              ) : <EmptyState tab={active} authorized={authorized} onGenerate={generateKey} />}
-              {newKey && active === "API Keys" && <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><div className="text-xs text-emerald-400 mb-2">Copy this key now — it will not be shown again.</div><code className="text-sm text-white break-all">{newKey}</code><div className="text-xs text-gray-500 mt-3">1,000 requests / day · pass as <code className="text-gray-400">X-API-Key</code> on <code className="text-gray-400">/api/demo</code></div></div>}
-            </div>
-          </section>
-        </div>
+    if (active === "Overview") return <>
+      <PageHeading eyebrow="WORKSPACE OVERVIEW" title="Your gateway at a glance." description="A live view of your Robinhood wallet and registered endpoint activity." action={<button onClick={() => setActive("Marketplace")} className="inline-flex items-center gap-2 rounded-xl bg-emerald-200 px-3.5 py-2.5 text-[11px] font-semibold text-[#08120d] transition hover:bg-emerald-100"><AppIcon name="marketplace" size={14}/> Publish endpoint</button>}/>
+      {!authorized && <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-amber-200/10 bg-amber-100/[0.035] p-4 md:flex-row md:items-center md:justify-between"><div><div className="text-xs font-medium text-white/80">Unlock your private workspace</div><div className="mt-1 text-[11px] text-white/40">One wallet signature, no gas. It only grants access to your wallet-scoped portal tools.</div></div><button type="button" onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d] disabled:opacity-50">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button></div>}
+      {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Wallet balance" value={authorized ? usdgDisplay : "Connect to view"} detail="USDG · Robinhood Chain" icon="wallet"/><StatCard label="Paid endpoint calls" value={authorized ? String(metrics?.paidCalls ?? (activityLoading ? "…" : "0")) : "—"} detail="Across your active listings" icon="transactions"/><StatCard label="Registered endpoints" value={authorized ? String(metrics?.endpoints ?? (activityLoading ? "…" : "0")) : "—"} detail="Verified public listings" icon="marketplace"/><StatCard label="Settlement volume" value={authorized ? `${Number(metrics?.settlementVolume ?? 0).toFixed(4)} USDG` : "—"} detail="Reported by your listings" icon="receipts"/></section>
+      <section className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5"><div className="mb-3 flex items-center justify-between"><div><div className="text-xs font-medium text-white/80">Payment protocol</div><div className="mt-1 text-[10px] text-white/35">Illustrative request lifecycle</div></div><span className="rounded-full border border-white/[0.08] px-2 py-1 font-mono text-[8px] tracking-wider text-white/35">HTTP 402</span></div><div className="overflow-x-auto"><PaymentFlowMini/></div></section>
+      <div className="grid gap-4 xl:grid-cols-[1.3fr_.7fr]">
+        <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-4 md:px-5"><div><div className="text-xs font-medium text-white/80">Recent settlements</div><div className="mt-1 text-[10px] text-white/35">Incoming USDG transfers to your wallet</div></div><button onClick={() => setActive("Transactions")} className="text-[10px] text-emerald-200/65 hover:text-emerald-100">View activity →</button></div>{!authorized ? <div className="p-4"><TableEmpty title="Sign in to see wallet activity" description="Your transaction history stays private to your connected wallet."/></div> : activityLoading ? <div className="p-8 text-center text-xs text-white/35">Reading recent transfer events…</div> : activityError ? <div className="p-6 text-center text-xs text-rose-300">{activityError}</div> : activity.length === 0 ? <div className="p-4"><TableEmpty title="No recent settlements" description="Confirmed USDG transfers received by this wallet will appear here."/></div> : <div className="divide-y divide-white/[0.05]">{activity.slice(0,5).map((tx) => <a key={tx.hash+tx.block} href={tx.explorer} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-white/[0.02] md:px-5"><span className="min-w-0"><span className="block truncate font-mono text-[10px] text-white/65">{tx.hash.slice(0,12)}…{tx.hash.slice(-8)}</span><span className="mt-1 block text-[9px] text-white/30">Block {tx.block} · confirmed</span></span><span className="shrink-0 text-xs font-medium text-emerald-200">+{tx.amount.toFixed(4)} USDG</span></a>)}</div>}</section>
+        <section className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5"><div className="text-xs font-medium text-white/80">Workspace shortcuts</div><div className="mt-3 flex flex-col gap-2"><button onClick={() => setActive("Marketplace")} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-left transition hover:border-white/15"><AppIcon name="marketplace" size={16} className="text-emerald-200/65"/><span className="flex-1"><span className="block text-[11px] text-white/75">Manage endpoints</span><span className="mt-1 block text-[9px] text-white/35">Publish and inspect public listings</span></span><AppIcon name="arrowRight" size={14} className="text-white/30"/></button><button onClick={() => setActive("API Keys")} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-left transition hover:border-white/15"><AppIcon name="key" size={16} className="text-emerald-200/65"/><span className="flex-1"><span className="block text-[11px] text-white/75">API credentials</span><span className="mt-1 block text-[9px] text-white/35">Create, review or revoke keys</span></span><AppIcon name="arrowRight" size={14} className="text-white/30"/></button><a href="/docs" className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 transition hover:border-white/15"><AppIcon name="docs" size={16} className="text-emerald-200/65"/><span className="flex-1"><span className="block text-[11px] text-white/75">Integration guides</span><span className="mt-1 block text-[9px] text-white/35">SDKs, middleware and examples</span></span><AppIcon name="arrow" size={13} className="text-white/30"/></a></div><div className="mt-4 rounded-xl border border-white/[0.06] bg-black/10 p-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/45">Supported SDK rails</span><span className="font-mono text-xs text-white/75">{rails.length || "—"}</span></div><button onClick={() => setActive("Networks")} className="mt-2 text-[10px] text-emerald-200/65 hover:text-emerald-100">Review network coverage →</button></div></section>
       </div>
-    </main>
-  );
+    </>;
+
+    if (active === "Marketplace") return <>
+      <PageHeading eyebrow="ENDPOINT DIRECTORY" title="Marketplace." description="Publish paid API endpoints and browse the verified public directory."/>
+      {!authorized && <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-amber-200/10 bg-amber-100/[0.035] p-4"><div><div className="text-xs font-medium text-white/80">Wallet authorization required to publish</div><div className="mt-1 text-[10px] text-white/40">Browse remains public; publishing is wallet-scoped.</div></div><button onClick={authorize} disabled={authBusy} className="shrink-0 rounded-xl bg-emerald-200 px-3 py-2 text-[10px] font-semibold text-[#08120d]">{authBusy ? "Signing…" : "Authorize"}</button></div>}
+      {authorized && <form onSubmit={publishListing} className="mb-5 grid gap-2 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:grid-cols-[1fr_1.4fr_.7fr_1fr_auto] md:items-center"><input required value={listingName} onChange={(e) => setListingName(e.target.value)} placeholder="Endpoint name" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/><input required type="url" value={listingUrl} onChange={(e) => setListingUrl(e.target.value)} placeholder="https://api.example.com" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/><input required type="number" min="0" step="0.000001" value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Price" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/><select value={listingNetwork} onChange={(e) => setListingNetwork(e.target.value)} className="input-dark !rounded-xl !border-white/[0.08] !bg-[#111312] !text-xs"><option value="robinhood-mainnet">Robinhood · USDG</option><option value="ethereum-mainnet">Ethereum · USDC</option><option value="base-mainnet">Base · USDC</option><option value="arbitrum-mainnet">Arbitrum · USDC</option><option value="polygon-mainnet">Polygon · USDC</option><option value="solana-mainnet">Solana · USDC</option><option value="sui-mainnet">Sui · USDC</option></select><button type="submit" className="rounded-xl bg-emerald-200 px-4 py-2.5 text-xs font-semibold text-[#08120d]">Publish</button></form>}
+      {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}{activityError && <p className="mb-4 text-xs text-rose-300">{activityError}</p>}
+      {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading the public directory…</div> : listings.length === 0 ? <TableEmpty title="No verified endpoints listed yet" description="When endpoint owners publish a paid API to the directory, it will appear here." action={<a href="/api/catalog" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-200/70">Inspect the public catalog ↗</a>}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{listings.map((item) => <article key={item.id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-medium text-white/85">{item.name}</h2><a href={item.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-[10px] text-white/35 hover:text-emerald-200">{item.url}</a></div><span className="rounded-md border border-emerald-200/10 bg-emerald-200/[0.04] px-2 py-1 font-mono text-[9px] text-emerald-100/70">{item.healthStatus || 402}</span></div><div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-3"><span className="font-mono text-[10px] text-white/45">{item.network || "robinhood-mainnet"}</span><span className="text-xs font-medium text-white/75">{Number(item.price).toFixed(6)} {item.asset || "USDG"}</span></div><div className="mt-2 flex gap-3 text-[9px] text-white/30"><span>{item.paidCallsCount || 0} paid calls</span><span>{item.requestsCount || 0} requests</span></div></article>)}</div>}
+    </>;
+
+    if (active === "Transactions" || active === "Receipts") return <>
+      <PageHeading eyebrow={active === "Receipts" ? "SETTLEMENT PROOFS" : "ONCHAIN ACTIVITY"} title={active === "Receipts" ? "Receipts." : "Transactions."} description={active === "Receipts" ? "Confirmed incoming USDG transfers, linked to their onchain explorer records." : "Recent USDG Transfer events received by your connected wallet on Robinhood Chain."} action={<span className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] px-3 py-2 text-[10px] text-white/45"><span className="size-1.5 rounded-full bg-emerald-300"/>Robinhood · 4663</span>}/>
+      {!authorized ? <TableEmpty title="Sign in to view wallet activity" description="A wallet signature is required to query transaction and receipt records for your address." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : activityError ? <div className="rounded-2xl border border-rose-200/10 bg-rose-200/[0.03] p-5 text-xs text-rose-200">{activityError}</div> : activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Scanning recent Transfer events…</div> : activity.length === 0 ? <TableEmpty title={active === "Receipts" ? "No receipts yet" : "No incoming transactions yet"} description="New confirmed USDG transfers to this wallet will be shown here with their block and explorer link."/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1.4fr_.8fr_.7fr_.6fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Transaction</span><span>Amount</span><span>Block</span><span>Status</span></div><div className="divide-y divide-white/[0.05]">{activity.map((tx) => <a key={tx.hash+tx.block} href={tx.explorer} target="_blank" rel="noreferrer" className="grid gap-2 px-4 py-3 transition hover:bg-white/[0.02] md:grid-cols-[1.4fr_.8fr_.7fr_.6fr] md:items-center md:gap-3 md:px-5"><span className="truncate font-mono text-[10px] text-white/70">{tx.hash.slice(0,14)}…{tx.hash.slice(-8)} <AppIcon name="arrow" size={11} className="ml-1 inline text-white/30"/></span><span className="text-xs text-emerald-200">{tx.amount.toFixed(6)} USDG</span><span className="text-[10px] text-white/40">Block {tx.block}</span><span className="text-[10px] text-emerald-200/70">Confirmed</span></a>)}</div></div>}
+    </>;
+
+    return <>
+      <PageHeading eyebrow="DEVELOPER ACCESS" title="API keys." description="Create scoped gateway credentials, monitor their request quota, and revoke keys you no longer use." action={<button onClick={() => { setNewKey(""); void generateKey(); }} disabled={!authorized} className="inline-flex items-center gap-2 rounded-xl bg-emerald-200 px-3.5 py-2.5 text-[11px] font-semibold text-[#08120d] disabled:cursor-not-allowed disabled:opacity-40"><AppIcon name="key" size={14}/> Create API key</button>}/>
+      {!authorized ? <TableEmpty title="Sign in to manage credentials" description="API keys are tied to your wallet and can only be viewed or revoked after wallet authorization." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : <>
+        {newKey && <div className="mb-4 rounded-2xl border border-emerald-200/15 bg-emerald-200/[0.04] p-4"><div className="flex items-center gap-2 text-xs font-medium text-emerald-100"><AppIcon name="check" size={15}/>Key created · copy it now</div><p className="mt-1 text-[10px] text-white/40">The full value will not be shown again.</p><code className="mt-3 block break-all rounded-xl border border-white/[0.07] bg-black/20 p-3 font-mono text-[11px] text-white/80">{newKey}</code><div className="mt-2 text-[9px] text-white/35">Send as <code className="text-white/55">X-API-Key</code> · 1,000 requests/day</div></div>}
+        {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}{activityError && <p className="mb-4 text-xs text-rose-300">{activityError}</p>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading API credentials…</div> : keys.length === 0 ? <TableEmpty title="No API keys yet" description="Create a key to authenticate applications that use Verge’s gateway. The full key appears only once." action={<button onClick={() => void generateKey()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first key</button>}/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_1fr_.7fr_.6fr_auto] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Credential</span><span>Created</span><span>Usage</span><span>Status</span><span/></div><div className="divide-y divide-white/[0.05]">{keys.map((key) => <div key={key.id} className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_1fr_.7fr_.6fr_auto] md:items-center md:px-5"><span className="font-mono text-[10px] text-white/70">vg_live_••••{key.lastFour}</span><span className="text-[10px] text-white/40">{new Date(key.createdAt).toLocaleDateString()}</span><span className="text-[10px] text-white/45">{key.usageCount || 0} / {key.quotaLimit || 1000}</span><span className={`text-[10px] ${key.revokedAt ? "text-rose-200/70" : "text-emerald-200/70"}`}>{key.revokedAt ? "Revoked" : "Active"}</span>{!key.revokedAt && <button onClick={() => void revokeKey(key.id)} className="justify-self-start rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 transition hover:border-rose-200/25 hover:text-rose-100 md:justify-self-end">Revoke</button>}</div>)}</div></div>}
+      </>}
+    </>;
+  };
+
+  return <main className="min-h-screen bg-[#0d0f0e] text-white md:flex"><Sidebar active={active} onSelect={changeActive} onOpenPalette={() => setPaletteOpen(true)} address={address}/><CommandPalette commands={commands} open={paletteOpen} onOpenChange={setPaletteOpen}/><div className="min-w-0 flex-1"><MobileTabBar active={active} onSelect={changeActive}/>{shellHeader}<div className="mx-auto max-w-[1440px] px-4 py-6 md:px-8 md:py-8 xl:px-10">{mainContent()}</div><footer className="mx-auto max-w-[1440px] border-t border-white/[0.06] px-4 py-5 text-[9px] text-white/25 md:px-8 xl:px-10"><div className="flex flex-wrap items-center justify-between gap-2"><span>Verge Gateway · Wallet-scoped access</span><span>Network: Robinhood Chain 4663 · SDK catalog: {rails.length || "…"} rails</span></div></footer></div></main>;
 }

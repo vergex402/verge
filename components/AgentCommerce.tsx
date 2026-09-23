@@ -1,7 +1,7 @@
 import Reveal from "@/components/Reveal";
 
 const features = [
-  { title: "Universal x402 standard", body: "Any HTTP client can pay. Any HTTP server can charge. Zero vendor lock-in." },
+  { title: "HTTP 402 payment flow", body: "Use the payment-required response pattern to challenge a request and verify the retry against settlement evidence." },
   { title: "AI-to-AI transactions", body: "Agents autonomously discover, negotiate, and pay for API access without human intervention." },
   { title: "Non-custodial wallets", body: "Agents hold their own keys. Payments are direct on-chain transfers, not IOUs." },
   { title: "Revenue sharing", body: "Facilitator fee is 0.5%. Self-host for 0%. Open source, MIT licensed." },
@@ -24,8 +24,8 @@ export default function AgentCommerce() {
             </Reveal>
             <Reveal delay={100}>
               <p className="text-gray-400 text-sm md:text-base mb-8 max-w-[520px]">
-                When AI agents need data, compute, or tools — they pay with USDG on Robinhood.
-                No API keys. No billing dashboards. Just HTTP 402 and a wallet.
+                Agents and applications can charge for API access through an HTTP 402 payment challenge. Use USDG on Robinhood Chain or a supported stablecoin rail through the SDK.
+                Wallet authorization is only needed for private portal tools.
               </p>
             </Reveal>
           </div>

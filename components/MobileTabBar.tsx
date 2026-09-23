@@ -1,23 +1,28 @@
 "use client";
 
-const items = ["Transactions", "Marketplace", "Receipts", "API Keys"] as const;
+import AppIcon from "@/components/AppIcon";
+
+const items = [
+  { key: "Overview", label: "Home", icon: "overview" },
+  { key: "Transactions", label: "Activity", icon: "transactions" },
+  { key: "Marketplace", label: "Market", icon: "marketplace" },
+  { key: "Receipts", label: "Receipts", icon: "receipts" },
+  { key: "API Keys", label: "Keys", icon: "key" },
+  { key: "Networks", label: "Rails", icon: "network" },
+] as const;
 
 export default function MobileTabBar({ active, onSelect }: { active: string; onSelect: (key: string) => void }) {
   return (
-    <nav className="md:hidden flex gap-1 overflow-x-auto px-4 py-3 border-b border-[#2a2a2e] bg-[#141416] sticky top-0 z-30">
-      {items.map((item) => (
-        <button
-          key={item}
-          type="button"
-          onClick={() => onSelect(item)}
-          className={[
-            "shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap",
-            active === item ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" : "text-gray-400 border border-transparent",
-          ].join(" ")}
-        >
-          {item}
-        </button>
-      ))}
+    <nav aria-label="Workspace navigation" className="md:hidden sticky top-0 z-30 border-b border-white/[0.07] bg-[#101112]/95 px-2 py-2 backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-1 overflow-x-auto">
+        {items.map((item) => {
+          const selected = active === item.key;
+          return <button key={item.key} type="button" onClick={() => onSelect(item.key)} aria-current={selected ? "page" : undefined}
+            className={`flex shrink-0 flex-col items-center gap-1 rounded-lg px-2.5 py-1.5 text-[9px] transition-colors ${selected ? "bg-emerald-300/10 text-emerald-200" : "text-white/40 hover:text-white/75"}`}>
+            <AppIcon name={item.icon} size={16}/>{item.label}
+          </button>;
+        })}
+      </div>
     </nav>
   );
 }
