@@ -15,6 +15,7 @@ const paths: Record<string, ReactNode> = {
   wallet: <><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v15H6.5A2.5 2.5 0 0 1 4 16.5v-10Z"/><path d="M4 7h16M16 12h4"/><circle cx="16" cy="12" r=".5"/></>,
   check: <path d="m5 12 4 4L19 6"/>,
   arrowRight: <><path d="M5 12h14M13 6l6 6-6 6"/></>,
+  flash: <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/>,
 };
 
 export default function AppIcon({ name, size = 18, className = "" }: { name: string; size?: number; className?: string }) {

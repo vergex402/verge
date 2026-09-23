@@ -19,3 +19,4 @@ sdk/node_modules
 
 # Never commit local signup data
 .data/*.jsonl
+artifacts/

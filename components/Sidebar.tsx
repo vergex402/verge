@@ -5,6 +5,7 @@ import AppIcon from "@/components/AppIcon";
 const groups = [
   { title: "WORKSPACE", items: [
     { key: "Overview", label: "Overview", icon: "overview" },
+    { key: "Live Demo", label: "Live demo", icon: "flash" },
     { key: "Transactions", label: "Transactions", icon: "transactions" },
     { key: "Marketplace", label: "Marketplace", icon: "marketplace" },
     { key: "Receipts", label: "Receipts", icon: "receipts" },

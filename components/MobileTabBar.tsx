@@ -4,6 +4,7 @@ import AppIcon from "@/components/AppIcon";
 
 const items = [
   { key: "Overview", label: "Home", icon: "overview" },
+  { key: "Live Demo", label: "Demo", icon: "flash" },
   { key: "Transactions", label: "Activity", icon: "transactions" },
   { key: "Marketplace", label: "Market", icon: "marketplace" },
   { key: "Receipts", label: "Receipts", icon: "receipts" },
