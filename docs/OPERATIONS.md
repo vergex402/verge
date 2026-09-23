@@ -5,7 +5,7 @@
 The public health endpoint checks both durable storage and Robinhood RPC fallback:
 
 ```bash
-curl https://vergesnowy.dev/api/health
+curl https://vergesnowy.com/api/health
 ```
 
 A healthy response includes:

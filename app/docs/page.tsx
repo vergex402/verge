@@ -162,7 +162,7 @@ HTTP/1.1 200 OK
 
           <Section id="api-keys" title="API keys">
             <p className="leading-7 ink-mid">API keys are for apps that want Verge-managed access without forcing every request to carry a payment transaction. A wallet signs into the console, creates a key, and your server can introspect it.</p>
-            <Code>{`curl -X POST https://vergesnowy.dev/api/keys/verify \
+            <Code>{`curl -X POST https://vergesnowy.com/api/keys/verify \
   -H "content-type: application/json" \
   -d '{"key": "vg_live_..."}'
 
@@ -172,9 +172,9 @@ HTTP/1.1 200 OK
 
           <Section id="marketplace" title="Marketplace and catalog">
             <p className="leading-7 ink-mid">The marketplace is the human UI for paid endpoints. <code>/api/catalog</code> is the machine-readable version for agents and crawlers. Use it to discover endpoints, supported rails, docs URL, gateway URL, and demo routes.</p>
-            <Code>{`curl https://vergesnowy.dev/api/catalog
-curl https://vergesnowy.dev/api/marketplace
-curl https://vergesnowy.dev/api/demo`}</Code>
+            <Code>{`curl https://vergesnowy.com/api/catalog
+curl https://vergesnowy.com/api/marketplace
+curl https://vergesnowy.com/api/demo`}</Code>
           </Section>
 
           <Section id="reference" title="Reference">

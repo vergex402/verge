@@ -8,7 +8,7 @@ export const runtime = "nodejs";
  * whether a Verge API key is valid before granting access to their own resource.
  * Does not consume a quota unit (unlike passing the key directly to /api/demo).
  *
- *   curl -X POST https://vergesnowy.dev/api/keys/verify \
+ *   curl -X POST https://vergesnowy.com/api/keys/verify \
  *     -H "content-type: application/json" \
  *     -d '{"key":"vg_live_..."}'
  */

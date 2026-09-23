@@ -50,8 +50,8 @@ createAppKit({
   metadata: {
     name: "Verge",
     description: "USDG payment rails for AI agents on Robinhood Chain",
-    url: "https://vergesnowy.dev",
-    icons: ["https://vergesnowy.dev/icon"],
+    url: "https://vergesnowy.com",
+    icons: ["https://vergesnowy.com/icon"],
   },
   features: { swaps: false, onramp: false, email: false, socials: false },
   themeMode: "dark",

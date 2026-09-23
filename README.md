@@ -16,7 +16,7 @@
 [![Status](https://img.shields.io/badge/status-LIVE-10b981?style=flat-square)]()
 [![$VERGE](https://img.shields.io/badge/$VERGE-Pons-10b981?style=flat-square)](https://ponsralph.xyz)
 
-[Website](https://vergesnowy.dev) · [Twitter](https://x.com/vergesnowyx402) · [$VERGE on Pons](https://ponsralph.xyz) · [Docs](./app/docs/page.tsx) · [Operations](./docs/OPERATIONS.md) · [Express SDK](./sdk/express) · [Hono SDK](./sdk/hono) · [x402 Spec](https://www.x402.org)
+[Website](https://vergesnowy.com) · [Twitter](https://x.com/vergesnowyx402) · [$VERGE on Pons](https://ponsralph.xyz) · [Docs](./app/docs/page.tsx) · [Operations](./docs/OPERATIONS.md) · [Express SDK](./sdk/express) · [Hono SDK](./sdk/hono) · [x402 Spec](https://www.x402.org)
 
 **CA:** `Cooming soon`
 

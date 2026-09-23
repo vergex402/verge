@@ -4,7 +4,7 @@ import { listRails, railChainId, railChainName, railTokenRef } from "@vergex402/
 
 export const runtime = "nodejs";
 
-const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vergesnowy.dev";
+const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vergesnowy.com";
 
 export async function GET(_req: NextRequest) {
   const listings = await query(`SELECT id, name, url, price_usdg as price, description,
