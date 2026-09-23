@@ -18,7 +18,7 @@
 
 [Website](https://vergesnowy.com) · [Twitter](https://x.com/vergesnowyx402) · [$VERGE on Pons](https://ponsralph.xyz) · [Docs](./app/docs/page.tsx) · [Operations](./docs/OPERATIONS.md) · [Express SDK](./sdk/express) · [Hono SDK](./sdk/hono) · [x402 Spec](https://www.x402.org)
 
-**CA:** `Cooming soon`
+**CA:** `0xb73b18267d23087e3af1390edfeb8c4308921d59`
 
 </div>
 
