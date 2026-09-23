@@ -72,6 +72,30 @@ export const PAYMENT_RAILS: Record<PaymentNetwork, PaymentRail> = {
 export const USDG_MAINNET = (PAYMENT_RAILS["robinhood-mainnet"] as EvmRail).tokenContract;
 export const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
+/** Alchemy subdomains per rail. Sui has no Alchemy coverage, so it always uses its public GraphQL RPC. */
+const ALCHEMY_SUBDOMAINS: Partial<Record<PaymentNetwork, string>> = {
+  "robinhood-mainnet": "robinhood-mainnet",
+  "ethereum-mainnet": "eth-mainnet",
+  "base-mainnet": "base-mainnet",
+  "arbitrum-mainnet": "arb-mainnet",
+  "polygon-mainnet": "polygon-mainnet",
+  "solana-mainnet": "solana-mainnet",
+};
+
+function alchemyUrl(network: PaymentNetwork): string | null {
+  const key = process.env.ALCHEMY_API_KEY;
+  const subdomain = ALCHEMY_SUBDOMAINS[network];
+  if (!key || !subdomain) return null;
+  return `https://${subdomain}.g.alchemy.com/v2/${key}`;
+}
+
+/** Ordered RPC candidates for a rail: explicit override, then Alchemy (if configured), then the public default. */
+export function rpcCandidates(network: PaymentNetwork, explicitRpcUrl?: string): string[] {
+  const rail = getRail(network);
+  const candidates = [explicitRpcUrl, alchemyUrl(network), rail.defaultRpcUrl].filter((u): u is string => Boolean(u));
+  return Array.from(new Set(candidates));
+}
+
 export function getRail(network: PaymentNetwork | string = "robinhood-mainnet"): PaymentRail {
   const rail = PAYMENT_RAILS[network as PaymentNetwork];
   if (!rail) throw new Error(`Unsupported payment network: ${network}`);
@@ -246,10 +270,26 @@ export async function evaluatePayment(opts: PaywallOptions, tx: string | undefin
 
     let ok = false;
     if (rail.kind === "evm") {
-      const client = createPublicClient({ chain: rail.chain, transport: http(opts.rpcUrl || rail.defaultRpcUrl) });
-      ok = await verifyStablecoinTransfer({ client, tx: tx as Hash, recipient: opts.recipient, amount: opts.amount, rail });
+      let lastError: unknown;
+      for (const url of rpcCandidates(network, opts.rpcUrl)) {
+        try {
+          const client = createPublicClient({ chain: rail.chain, transport: http(url) });
+          ok = await verifyStablecoinTransfer({ client, tx: tx as Hash, recipient: opts.recipient, amount: opts.amount, rail });
+          lastError = undefined;
+          break;
+        } catch (e) { lastError = e; continue; }
+      }
+      if (lastError) throw lastError;
     } else if (rail.kind === "solana") {
-      ok = await verifySolanaUsdcTransfer(opts.rpcUrl || rail.defaultRpcUrl, tx, opts.recipient, opts.amount, rail);
+      let lastError: unknown;
+      for (const url of rpcCandidates(network, opts.rpcUrl)) {
+        try {
+          ok = await verifySolanaUsdcTransfer(url, tx, opts.recipient, opts.amount, rail);
+          lastError = undefined;
+          break;
+        } catch (e) { lastError = e; continue; }
+      }
+      if (lastError) throw lastError;
     } else {
       ok = await verifySuiUsdcTransfer(opts.rpcUrl || rail.defaultRpcUrl, tx, opts.recipient, opts.amount, rail);
     }
