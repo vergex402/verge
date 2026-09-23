@@ -1,6 +1,6 @@
 {
   "name": "@vergex402/core",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Shared HTTP 402 / USDG payment verification core for Robinhood Chain, used by framework adapters.",
   "type": "module",
   "main": "./dist/index.js",

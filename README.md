@@ -9,13 +9,14 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
 [![Robinhood Chain](https://img.shields.io/badge/Robinhood_Chain-mainnet-10b981?style=flat-square)](https://robinhood.com/us/en/support/articles/robinhood-chain-mainnet/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=nextdotjs)](https://nextjs.org)
+[![Verify](https://github.com/vergex402/verge/actions/workflows/verify.yml/badge.svg)](https://github.com/vergex402/verge/actions/workflows/verify.yml)
 [![npm express](https://img.shields.io/npm/v/@vergex402/express?label=%40vergex402%2Fexpress&style=flat-square&color=10b981)](https://www.npmjs.com/package/@vergex402/express)
 [![npm hono](https://img.shields.io/npm/v/@vergex402/hono?label=%40vergex402%2Fhono&style=flat-square&color=10b981)](https://www.npmjs.com/package/@vergex402/hono)
 [![Stars](https://img.shields.io/github/stars/vergex402/verge?style=flat-square&logo=github&color=10b981)](https://github.com/vergex402/verge/stargazers)
 [![Status](https://img.shields.io/badge/status-LIVE-10b981?style=flat-square)]()
 [![$VERGE](https://img.shields.io/badge/$VERGE-Pons-10b981?style=flat-square)](https://ponsralph.xyz)
 
-[Website](https://vergesnowy.dev) · [Twitter](https://x.com/vergesnowyx402) · [$VERGE on Pons](https://ponsralph.xyz) · [Docs](./app/docs/page.tsx) · [Express SDK](./sdk/express) · [Hono SDK](./sdk/hono) · [x402 Spec](https://www.x402.org)
+[Website](https://vergesnowy.dev) · [Twitter](https://x.com/vergesnowyx402) · [$VERGE on Pons](https://ponsralph.xyz) · [Docs](./app/docs/page.tsx) · [Operations](./docs/OPERATIONS.md) · [Express SDK](./sdk/express) · [Hono SDK](./sdk/hono) · [x402 Spec](https://www.x402.org)
 
 **CA:** `Cooming soon`
 
@@ -39,6 +40,26 @@ app.use("/api/premium", paywall({
 
 That's the whole integration.
 
+## Supported payment rails
+
+Verge is **Robinhood-native by default** — USDG on Robinhood Chain (`4663`) is the flagship rail.
+The core verifier is EVM multichain-ready and supports explicit opt-in stablecoin rails:
+
+| Network | Chain ID | Asset | Identifier |
+|---|---:|---|---|
+| **Robinhood Chain** | `4663` | USDG | `robinhood-mainnet` |
+| Base | `8453` | USDC | `base-mainnet` |
+| Arbitrum One | `42161` | USDC | `arbitrum-mainnet` |
+| Polygon | `137` | USDC | `polygon-mainnet` |
+
+```ts
+app.use("/api/premium", paywall({
+  amount: 0.001,
+  recipient: process.env.WALLET,
+  network: "base-mainnet", // explicit opt-in; default remains Robinhood/USDG
+}));
+```
+
 ## Why Robinhood Chain?
 
 | Network         | Block time | Tx fee     | Verdict for $0.001 calls |
@@ -58,6 +79,8 @@ verge/
 ├── components/                   # React components (Hero, ScrollCube, Pricing, …)
 ├── sdk/express/                  # @vergex402/express — npm-publishable middleware
 ├── sdk/hono/                     # @vergex402/hono — npm-publishable Hono adapter
+├── sdk/core/                     # @vergex402/core — shared EVM rail registry + verifier
+├── examples/                     # copyable Express + Hono paid-endpoint starters
 ├── public/                       # banner.jpg + avatar.jpg (design by @hellokent)
 ├── BRAND_BRIEF.md                # Brand guidelines + visual world
 └── README.md

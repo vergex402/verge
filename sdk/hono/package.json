@@ -1,6 +1,6 @@
 {
   "name": "@vergex402/hono",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "Hono middleware for HTTP 402 USDG micropayments on Robinhood Chain via Verge.",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,7 +32,7 @@
     "hono": "^4.0.0"
   },
   "dependencies": {
-    "@vergex402/core": "^0.1.0",
+    "@vergex402/core": "^0.2.1",
     "viem": "^2.0.0"
   },
   "devDependencies": {

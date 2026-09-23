@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { consumeChallenge, createSession } from "@/app/lib/auth";
+import { audit } from "@/app/lib/db";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Invalid or expired wallet signature" }, { status: 401 });
     }
     const session = await createSession(address);
+    await audit("auth.session_created", address.toLowerCase(), session.token.slice(-8));
     const jar = await cookies();
     jar.set("verge_session", session.token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 });
     return Response.json({ ok: true, address: address.toLowerCase(), expiresAt: session.expiresAt });

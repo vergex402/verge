@@ -1,6 +1,6 @@
 # @vergex402/core
 
-Shared HTTP 402 / USDG payment verification logic for **Robinhood Chain** (chain ID `4663`).
+Shared HTTP 402 stablecoin-payment verification for EVM rails. **Robinhood Chain / USDG is the default flagship**, with explicit opt-in support for Base, Arbitrum, and Polygon USDC.
 
 Framework-agnostic — no Express, no Hono, no runtime assumptions. `@vergex402/express` and
 `@vergex402/hono` are thin adapters on top of this package so the payment logic (challenge

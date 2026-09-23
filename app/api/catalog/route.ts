@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { query } from "@/app/lib/db";
+import { listRails } from "@vergex402/core";
 
 export const runtime = "nodejs";
 
@@ -7,13 +8,15 @@ const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vergesnowy.dev";
 
 export async function GET(_req: NextRequest) {
   const listings = await query(`SELECT id, name, url, price_usdg as price, description,
-    payment_required as "paymentRequired" FROM endpoints
+    payment_required as "paymentRequired", payment_network as network, payment_asset as asset, payment_chain_id as "chainId",
+    requests_count as "requestsCount", paid_calls_count as "paidCallsCount", settlement_volume as "settlementVolume" FROM endpoints
     WHERE revoked_at IS NULL AND health_status IN (200, 401, 402) ORDER BY created_at DESC LIMIT 100`);
 
   return Response.json({
     name: "Verge Gateway",
     version: "1.0",
-    network: { name: "Robinhood Chain", chainId: 4663, asset: "USDG" },
+    network: { name: "Robinhood Chain", chainId: 4663, asset: "USDG", flagship: true },
+    supportedRails: listRails().map(({ id, chainId, chain, asset, tokenContract, decimals, explorerUrl }) => ({ id, chainId, name: chain.name, asset, tokenContract, decimals, explorerUrl })),
     protocol: "x402",
     discovery: {
       documentation: `${baseUrl}/docs`,

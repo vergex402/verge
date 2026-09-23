@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createHash, randomBytes } from "node:crypto";
-import { query, queryOne } from "@/app/lib/db";
+import { query, queryOne, audit } from "@/app/lib/db";
 import { sessionAddress } from "@/app/lib/auth";
 
 export const runtime = "nodejs";
@@ -29,6 +29,7 @@ export async function POST(_req: NextRequest) {
     "INSERT INTO api_keys(id, wallet, key_hash, last_four, created_at) VALUES ($1, $2, $3, $4, $5)",
     [id, address, createHash("sha256").update(raw).digest("hex"), raw.slice(-4), new Date().toISOString()]
   );
+  await audit("api_key.created", address, id, { lastFour: raw.slice(-4), quotaLimit: 1000 });
   return Response.json({ key: raw, id, warning: "Copy this key now. It will not be shown again." }, { status: 201 });
 }
 
@@ -42,5 +43,6 @@ export async function DELETE(req: NextRequest) {
     [new Date().toISOString(), id, address]
   );
   if (!result) return Response.json({ error: "Key not found" }, { status: 404 });
+  await audit("api_key.revoked", address, id);
   return Response.json({ ok: true });
 }

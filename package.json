@@ -12,6 +12,7 @@
     "@reown/appkit": "^1.8.24",
     "@reown/appkit-adapter-wagmi": "^1.8.24",
     "@tanstack/react-query": "^5.103.2",
+    "@vergex402/core": "file:sdk/core",
     "@x402/core": "^2.26.0",
     "@x402/evm": "^2.26.0",
     "@x402/svm": "^2.26.0",

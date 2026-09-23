@@ -1,6 +1,6 @@
 # @vergex402/express
 
-Express middleware for HTTP 402 USDG micropayments on **Robinhood Chain** (chain ID `4663`).
+Express middleware for HTTP 402 stablecoin micropayments. Defaults to **USDG on Robinhood Chain** (ID `4663`), with explicit Base/Arbitrum/Polygon USDC support through the shared core.
 
 ```bash
 npm install @vergex402/express

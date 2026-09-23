@@ -1,0 +1,38 @@
+name: Verify Verge
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install app dependencies
+        run: npm ci
+      - name: Build app
+        env:
+          # Build only needs a syntactically valid URL; route data is dynamic at runtime.
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/postgres
+        run: npm run build
+      - name: Build SDKs
+        run: |
+          npm ci --prefix sdk/core
+          npm run build --prefix sdk/core
+          npm ci --prefix sdk/express
+          npm run build --prefix sdk/express
+          npm ci --prefix sdk/hono
+          npm run build --prefix sdk/hono
+      - name: Advisory quality scan
+        continue-on-error: true
+        run: npx aislop@latest scan
