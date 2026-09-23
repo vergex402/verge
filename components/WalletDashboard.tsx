@@ -18,7 +18,7 @@ const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as const;
 const erc20Abi = [{ type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
 type Tab = "Overview" | "Live Demo" | "Transactions" | "Marketplace" | "Receipts" | "API Keys" | "Networks";
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
-type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number };
+type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null };
 type Metrics = { endpoints: number; discoveryHits: number; paidCalls: number; settlementVolume: number };
 
@@ -65,6 +65,11 @@ export default function WalletDashboard() {
   const [listingUrl, setListingUrl] = useState("");
   const [listingPrice, setListingPrice] = useState("0.001");
   const [listingNetwork, setListingNetwork] = useState("robinhood-mainnet");
+  const [listingMode, setListingMode] = useState<"hosted" | "self">("hosted");
+  const [listingTemplate, setListingTemplate] = useState("random-joke");
+  const [templates, setTemplates] = useState<{ id: string; name: string; description: string; defaultPrice: number }[]>([]);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [justPublished, setJustPublished] = useState<Listing | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
@@ -123,10 +128,26 @@ export default function WalletDashboard() {
     finally { setRevokingId(null); }
   }, [revokingId]);
 
+  useEffect(() => {
+    let live = true;
+    fetch("/api/marketplace/templates").then((r) => r.json()).then((d) => { if (live && Array.isArray(d.templates)) setTemplates(d.templates); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+
   async function publishListing(event: React.FormEvent) {
-    event.preventDefault(); setAuthError("");
-    try { const response = await fetch("/api/marketplace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: listingName, url: listingUrl, price: listingPrice, network: listingNetwork }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not publish endpoint"); setListings((current) => [data, ...current]); setListingName(""); setListingUrl(""); }
-    catch (error) { setAuthError(error instanceof Error ? error.message : "Could not publish endpoint"); }
+    event.preventDefault(); setAuthError(""); setPublishBusy(true); setJustPublished(null);
+    try {
+      const payload = listingMode === "hosted"
+        ? { name: listingName, price: listingPrice, network: listingNetwork, hostedTemplate: listingTemplate, description: listingName }
+        : { name: listingName, url: listingUrl, price: listingPrice, network: listingNetwork };
+      const response = await fetch("/api/marketplace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not publish endpoint");
+      setListings((current) => [data, ...current]);
+      setJustPublished(data);
+      setListingName(""); setListingUrl("");
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not publish endpoint"); }
+    finally { setPublishBusy(false); }
   }
 
   const commands = [
@@ -183,9 +204,39 @@ export default function WalletDashboard() {
     if (active === "Marketplace") return <>
       <PageHeading eyebrow="ENDPOINT DIRECTORY" title="Marketplace." description="Publish paid API endpoints and browse the verified public directory."/>
       {!authorized && <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-amber-200/10 bg-amber-100/[0.035] p-4"><div><div className="text-xs font-medium text-white/80">Wallet authorization required to publish</div><div className="mt-1 text-[10px] text-white/40">Browse remains public; publishing is wallet-scoped.</div></div><button onClick={authorize} disabled={authBusy} className="shrink-0 rounded-xl bg-emerald-200 px-3 py-2 text-[10px] font-semibold text-[#08120d]">{authBusy ? "Signing…" : "Authorize"}</button></div>}
-      {authorized && <form onSubmit={publishListing} className="mb-5 grid gap-2 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:grid-cols-[1fr_1.4fr_.7fr_1fr_auto] md:items-center"><input required value={listingName} onChange={(e) => setListingName(e.target.value)} placeholder="Endpoint name" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/><input required type="url" value={listingUrl} onChange={(e) => setListingUrl(e.target.value)} placeholder="https://api.example.com" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/><input required type="number" min="0" step="0.000001" value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Price" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/><select value={listingNetwork} onChange={(e) => setListingNetwork(e.target.value)} className="input-dark !rounded-xl !border-white/[0.08] !bg-[#111312] !text-xs"><option value="robinhood-mainnet">Robinhood · USDG</option><option value="ethereum-mainnet">Ethereum · USDC</option><option value="base-mainnet">Base · USDC</option><option value="arbitrum-mainnet">Arbitrum · USDC</option><option value="polygon-mainnet">Polygon · USDC</option><option value="solana-mainnet">Solana · USDC</option><option value="sui-mainnet">Sui · USDC</option></select><button type="submit" className="rounded-xl bg-emerald-200 px-4 py-2.5 text-xs font-semibold text-[#08120d]">Publish</button></form>}
+      {authorized && <form onSubmit={publishListing} className="mb-3 rounded-2xl border border-white/[0.07] bg-[#141616] p-4">
+        <div className="mb-3 flex gap-2">
+          <button type="button" onClick={() => setListingMode("hosted")} className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition ${listingMode === "hosted" ? "bg-emerald-200 text-[#08120d]" : "border border-white/10 text-white/50 hover:text-white/80"}`}>Hosted by Verge (instant)</button>
+          <button type="button" onClick={() => setListingMode("self")} className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition ${listingMode === "self" ? "bg-emerald-200 text-[#08120d]" : "border border-white/10 text-white/50 hover:text-white/80"}`}>Self-hosted URL</button>
+        </div>
+        {listingMode === "hosted" ? (
+          <div className="grid gap-2 md:grid-cols-[1.2fr_1.6fr_.8fr_1fr_auto] md:items-center">
+            <input required value={listingName} onChange={(e) => setListingName(e.target.value)} placeholder="Listing name" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+            <select value={listingTemplate} onChange={(e) => { setListingTemplate(e.target.value); const t = templates.find((x) => x.id === e.target.value); if (t) setListingPrice(String(t.defaultPrice)); }} className="input-dark !rounded-xl !border-white/[0.08] !bg-[#111312] !text-xs">
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <input required type="number" min="0" step="0.000001" value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Price" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+            <select value={listingNetwork} onChange={(e) => setListingNetwork(e.target.value)} className="input-dark !rounded-xl !border-white/[0.08] !bg-[#111312] !text-xs"><option value="robinhood-mainnet">Robinhood · USDG</option></select>
+            <button type="submit" disabled={publishBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-xs font-semibold text-[#08120d] disabled:opacity-50">{publishBusy ? "Publishing…" : "Publish"}</button>
+          </div>
+        ) : (
+          <div className="grid gap-2 md:grid-cols-[1fr_1.4fr_.7fr_1fr_auto] md:items-center">
+            <input required value={listingName} onChange={(e) => setListingName(e.target.value)} placeholder="Endpoint name" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+            <input required type="url" value={listingUrl} onChange={(e) => setListingUrl(e.target.value)} placeholder="https://api.example.com" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+            <input required type="number" min="0" step="0.000001" value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Price" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+            <select value={listingNetwork} onChange={(e) => setListingNetwork(e.target.value)} className="input-dark !rounded-xl !border-white/[0.08] !bg-[#111312] !text-xs"><option value="robinhood-mainnet">Robinhood · USDG</option><option value="ethereum-mainnet">Ethereum · USDC</option><option value="base-mainnet">Base · USDC</option><option value="arbitrum-mainnet">Arbitrum · USDC</option><option value="polygon-mainnet">Polygon · USDC</option><option value="solana-mainnet">Solana · USDC</option><option value="sui-mainnet">Sui · USDC</option></select>
+            <button type="submit" disabled={publishBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-xs font-semibold text-[#08120d] disabled:opacity-50">{publishBusy ? "Checking…" : "Publish"}</button>
+          </div>
+        )}
+        {listingMode === "hosted" && <p className="mt-2 text-[10px] text-white/35">Verge hosts this endpoint at a live URL and proxies to a real upstream API. Anyone can call it, pay {listingPrice || "…"} USDG, and get real data back — settled straight to your wallet.</p>}
+      </form>}
+      {justPublished && <div className="mb-5 rounded-2xl border border-emerald-200/20 bg-emerald-200/[0.05] p-4">
+        <div className="flex items-center gap-2 text-xs font-medium text-emerald-100"><AppIcon name="check" size={15}/>Endpoint is live</div>
+        <a href={justPublished.url} target="_blank" rel="noreferrer" className="mt-2 block break-all font-mono text-[11px] text-emerald-200/85 hover:text-emerald-100">{justPublished.url}</a>
+        <p className="mt-2 text-[10px] leading-4 text-white/45">Anyone who calls this URL gets a real HTTP 402 challenge. Pay {justPublished.price} USDG on Robinhood Chain and it unlocks — try it from the Live Demo tab or curl it yourself.</p>
+      </div>}
       {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}{activityError && <p className="mb-4 text-xs text-rose-300">{activityError}</p>}
-      {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading the public directory…</div> : listings.length === 0 ? <TableEmpty title="No verified endpoints listed yet" description="When endpoint owners publish a paid API to the directory, it will appear here." action={<a href="/api/catalog" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-200/70">Inspect the public catalog ↗</a>}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{listings.map((item) => <article key={item.id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-medium text-white/85">{item.name}</h2><a href={item.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-[10px] text-white/35 hover:text-emerald-200">{item.url}</a></div><span className="rounded-md border border-emerald-200/10 bg-emerald-200/[0.04] px-2 py-1 font-mono text-[9px] text-emerald-100/70">{item.healthStatus || 402}</span></div><div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-3"><span className="font-mono text-[10px] text-white/45">{item.network || "robinhood-mainnet"}</span><span className="text-xs font-medium text-white/75">{Number(item.price).toFixed(6)} {item.asset || "USDG"}</span></div><div className="mt-2 flex gap-3 text-[9px] text-white/30"><span>{item.paidCallsCount || 0} paid calls</span><span>{item.requestsCount || 0} requests</span></div></article>)}</div>}
+      {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading the public directory…</div> : listings.length === 0 ? <TableEmpty title="No verified endpoints listed yet" description="When endpoint owners publish a paid API to the directory, it will appear here." action={<a href="/api/catalog" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-200/70">Inspect the public catalog ↗</a>}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{listings.map((item) => <article key={item.id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-medium text-white/85">{item.name}</h2><a href={item.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-[10px] text-white/35 hover:text-emerald-200">{item.url}</a></div>{item.hostedSlug ? <span className="rounded-md border border-emerald-200/20 bg-emerald-200/[0.08] px-2 py-1 font-mono text-[9px] text-emerald-200">LIVE</span> : <span className="rounded-md border border-emerald-200/10 bg-emerald-200/[0.04] px-2 py-1 font-mono text-[9px] text-emerald-100/70">{item.healthStatus || 402}</span>}</div><div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-3"><span className="font-mono text-[10px] text-white/45">{item.network || "robinhood-mainnet"}</span><span className="text-xs font-medium text-white/75">{Number(item.price).toFixed(6)} {item.asset || "USDG"}</span></div><div className="mt-2 flex gap-3 text-[9px] text-white/30"><span>{item.paidCallsCount || 0} paid calls</span><span>{item.requestsCount || 0} requests</span></div></article>)}</div>}
     </>;
 
     if (active === "Transactions" || active === "Receipts") return <>

@@ -75,6 +75,21 @@ export function ensureSchema(): Promise<void> {
       ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS requests_count BIGINT NOT NULL DEFAULT 0;
       ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS paid_calls_count BIGINT NOT NULL DEFAULT 0;
       ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS settlement_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS hosted_slug TEXT UNIQUE;
+      ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS hosted_template TEXT;
+      CREATE TABLE IF NOT EXISTS x402_nonces (
+        nonce TEXT PRIMARY KEY,
+        network TEXT NOT NULL,
+        recipient TEXT NOT NULL,
+        amount DOUBLE PRECISION NOT NULL,
+        endpoint_id TEXT,
+        expires_at BIGINT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS x402_settlements (
+        replay_key TEXT PRIMARY KEY,
+        endpoint_id TEXT,
+        settled_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `).then(() => undefined);
   }
   return schemaReady;
