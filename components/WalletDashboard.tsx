@@ -55,6 +55,7 @@ export default function WalletDashboard() {
   const [authError, setAuthError] = useState("");
   const [newKey, setNewKey] = useState("");
   const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState("");
@@ -115,9 +116,12 @@ export default function WalletDashboard() {
   }, []);
 
   const revokeKey = useCallback(async (id: string) => {
+    if (revokingId) return;
+    setRevokingId(id); setAuthError("");
     try { const response = await fetch(`/api/keys?id=${encodeURIComponent(id)}`, { method: "DELETE" }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not revoke key"); setKeys((current) => current.map((key) => key.id === id ? { ...key, revokedAt: new Date().toISOString() } : key)); }
     catch (error) { setAuthError(error instanceof Error ? error.message : "Could not revoke key"); }
-  }, []);
+    finally { setRevokingId(null); }
+  }, [revokingId]);
 
   async function publishListing(event: React.FormEvent) {
     event.preventDefault(); setAuthError("");
@@ -194,7 +198,7 @@ export default function WalletDashboard() {
       {!authorized ? <TableEmpty title="Sign in to manage credentials" description="API keys are tied to your wallet and can only be viewed or revoked after wallet authorization." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : <>
         {newKey && <div className="mb-4 rounded-2xl border border-emerald-200/15 bg-emerald-200/[0.04] p-4"><div className="flex items-center gap-2 text-xs font-medium text-emerald-100"><AppIcon name="check" size={15}/>Key created · copy it now</div><p className="mt-1 text-[10px] text-white/40">The full value will not be shown again.</p><code className="mt-3 block break-all rounded-xl border border-white/[0.07] bg-black/20 p-3 font-mono text-[11px] text-white/80">{newKey}</code><div className="mt-2 text-[9px] text-white/35">Send as <code className="text-white/55">X-API-Key</code> · 1,000 requests/day</div></div>}
         {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}{activityError && <p className="mb-4 text-xs text-rose-300">{activityError}</p>}
-        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading API credentials…</div> : keys.length === 0 ? <TableEmpty title="No API keys yet" description="Create a key to authenticate applications that use Verge’s gateway. The full key appears only once." action={<button onClick={() => void generateKey()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first key</button>}/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_1fr_.7fr_.6fr_auto] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Credential</span><span>Created</span><span>Usage</span><span>Status</span><span/></div><div className="divide-y divide-white/[0.05]">{keys.map((key) => <div key={key.id} className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_1fr_.7fr_.6fr_auto] md:items-center md:px-5"><span className="font-mono text-[10px] text-white/70">vg_live_••••{key.lastFour}</span><span className="text-[10px] text-white/40">{new Date(key.createdAt).toLocaleDateString()}</span><span className="text-[10px] text-white/45">{key.usageCount || 0} / {key.quotaLimit || 1000}</span><span className={`text-[10px] ${key.revokedAt ? "text-rose-200/70" : "text-emerald-200/70"}`}>{key.revokedAt ? "Revoked" : "Active"}</span>{!key.revokedAt && <button onClick={() => void revokeKey(key.id)} className="justify-self-start rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 transition hover:border-rose-200/25 hover:text-rose-100 md:justify-self-end">Revoke</button>}</div>)}</div></div>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading API credentials…</div> : keys.length === 0 ? <TableEmpty title="No API keys yet" description="Create a key to authenticate applications that use Verge’s gateway. The full key appears only once." action={<button onClick={() => void generateKey()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first key</button>}/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_1fr_.7fr_.6fr_auto] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Credential</span><span>Created</span><span>Usage</span><span>Status</span><span/></div><div className="divide-y divide-white/[0.05]">{keys.map((key) => <div key={key.id} className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_1fr_.7fr_.6fr_auto] md:items-center md:px-5"><span className="font-mono text-[10px] text-white/70">vg_live_••••{key.lastFour}</span><span className="text-[10px] text-white/40">{new Date(key.createdAt).toLocaleDateString()}</span><span className="text-[10px] text-white/45">{key.usageCount || 0} / {key.quotaLimit || 1000}</span><span className={`text-[10px] ${key.revokedAt ? "text-rose-200/70" : "text-emerald-200/70"}`}>{key.revokedAt ? "Revoked" : "Active"}</span>{!key.revokedAt && <button onClick={() => void revokeKey(key.id)} disabled={revokingId === key.id} className="justify-self-start rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 transition hover:border-rose-200/25 hover:text-rose-100 disabled:cursor-not-allowed disabled:opacity-40 md:justify-self-end">{revokingId === key.id ? "Revoking…" : "Revoke"}</button>}</div>)}</div></div>}
       </>}
     </>;
   };
