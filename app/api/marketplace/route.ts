@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { query, queryOne, audit, allowRateLimit } from "@/app/lib/db";
 import { sessionAddress } from "@/app/lib/auth";
 import { verifyEndpointUrl } from "@/app/lib/endpoint-health";
-import { getRail, type PaymentNetwork } from "@vergex402/core";
+import { getRail, railChainId, type PaymentNetwork } from "@vergex402/core";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
@@ -40,9 +40,9 @@ export async function POST(req: NextRequest) {
     const checkedAt = new Date().toISOString();
     await query(`INSERT INTO endpoints(id, wallet, name, url, price_usdg, description, health_status, payment_required, checked_at, created_at, payment_network, payment_asset, payment_chain_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-      [id, wallet, name.trim(), health.url, numericPrice, String(description).slice(0, 280), health.status, Number(health.paymentRequired), checkedAt, checkedAt, rail.id, rail.asset, rail.chainId]);
-    await audit("marketplace.endpoint_published", wallet, id, { network: rail.id, asset: rail.asset, chainId: rail.chainId, healthStatus: health.status });
-    return Response.json({ id, name: name.trim(), url: health.url, price: numericPrice, network: rail.id, asset: rail.asset, chainId: rail.chainId, healthStatus: health.status, paymentRequired: health.paymentRequired, checkedAt }, { status: 201 });
+      [id, wallet, name.trim(), health.url, numericPrice, String(description).slice(0, 280), health.status, Number(health.paymentRequired), checkedAt, checkedAt, rail.id, rail.asset, railChainId(rail)]);
+    await audit("marketplace.endpoint_published", wallet, id, { network: rail.id, asset: rail.asset, chainId: railChainId(rail), healthStatus: health.status });
+    return Response.json({ id, name: name.trim(), url: health.url, price: numericPrice, network: rail.id, asset: rail.asset, chainId: railChainId(rail), healthStatus: health.status, paymentRequired: health.paymentRequired, checkedAt }, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Invalid marketplace listing" }, { status: 400 });
   }

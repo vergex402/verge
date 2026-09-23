@@ -43,22 +43,27 @@ That's the whole integration.
 ## Supported payment rails
 
 Verge is **Robinhood-native by default** — USDG on Robinhood Chain (`4663`) is the flagship rail.
-The core verifier is EVM multichain-ready and supports explicit opt-in stablecoin rails:
+The core verifier supports explicit opt-in stablecoin rails across EVM, Solana, and Sui:
 
-| Network | Chain ID | Asset | Identifier |
-|---|---:|---|---|
-| **Robinhood Chain** | `4663` | USDG | `robinhood-mainnet` |
-| Base | `8453` | USDC | `base-mainnet` |
-| Arbitrum One | `42161` | USDC | `arbitrum-mainnet` |
-| Polygon | `137` | USDC | `polygon-mainnet` |
+| Network | Chain | Asset | Identifier |
+|---|---|---|---|
+| **Robinhood Chain** | EVM `4663` | USDG | `robinhood-mainnet` |
+| Ethereum L1 | EVM `1` | USDC | `ethereum-mainnet` |
+| Base | EVM `8453` | USDC | `base-mainnet` |
+| Arbitrum One | EVM `42161` | USDC | `arbitrum-mainnet` |
+| Polygon | EVM `137` | USDC | `polygon-mainnet` |
+| Solana | SVM | USDC | `solana-mainnet` |
+| Sui | Move | USDC | `sui-mainnet` |
 
 ```ts
 app.use("/api/premium", paywall({
   amount: 0.001,
   recipient: process.env.WALLET,
-  network: "base-mainnet", // explicit opt-in; default remains Robinhood/USDG
+  network: "solana-mainnet", // explicit opt-in; default remains Robinhood/USDG
 }));
 ```
+
+Solana settlement is verified from confirmed SPL token-balance deltas; Sui settlement is verified from finalized transaction balance changes via Sui GraphQL RPC (Sui deprecated JSON-RPC in 2026). EVM rails verify from the stablecoin `Transfer` event log.
 
 ## Why Robinhood Chain?
 

@@ -153,7 +153,7 @@ export default function WalletDashboard() {
 
           <aside className="flex flex-col gap-5">
             <section className="rounded-[24px] border border-emerald-500/25 bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.15),transparent_55%),#1B1B1C] p-6 md:p-7"><div className="font-mono text-[11px] tracking-[0.2em] text-emerald-400 uppercase">Builder access</div><h2 className="text-2xl font-light text-white mt-4">Connect when you are ready to build.</h2><p className="text-sm text-gray-400 leading-relaxed mt-3">A wallet is only required to publish a listing, view wallet receipts, or generate a scoped API key. No email. No password.</p><WalletButton className="mt-6 w-full" /><p className="text-xs text-gray-500 mt-4">WalletConnect · Reown · Robinhood Chain 4663</p></section>
-            <section className="rounded-[24px] border border-[#2a2a2e] bg-[#1B1B1C] p-6"><div className="flex items-center justify-between"><span className="text-sm text-gray-400">Payment rails</span><span className="size-2 rounded-full bg-emerald-400" /></div><div className="text-xl text-white mt-4">Robinhood is the flagship.</div><div className="font-mono text-xs text-emerald-400 mt-2">4663 · USDG · EVM</div><div className="mt-5 pt-5 border-t border-[#2a2a2e] grid grid-cols-3 gap-2 text-[10px] font-mono text-gray-500"><span>BASE<br/><b className="text-gray-300">USDC · 8453</b></span><span>ARBITRUM<br/><b className="text-gray-300">USDC · 42161</b></span><span>POLYGON<br/><b className="text-gray-300">USDC · 137</b></span></div></section>
+            <section className="rounded-[24px] border border-[#2a2a2e] bg-[#1B1B1C] p-6"><div className="flex items-center justify-between"><span className="text-sm text-gray-400">Payment rails</span><span className="size-2 rounded-full bg-emerald-400" /></div><div className="text-xl text-white mt-4">Robinhood is the flagship.</div><div className="font-mono text-xs text-emerald-400 mt-2">4663 · USDG · EVM</div><div className="mt-5 pt-5 border-t border-[#2a2a2e] grid grid-cols-3 gap-2 text-[10px] font-mono text-gray-500"><span>ETHEREUM<br/><b className="text-gray-300">USDC · 1</b></span><span>BASE<br/><b className="text-gray-300">USDC · 8453</b></span><span>ARBITRUM<br/><b className="text-gray-300">USDC · 42161</b></span><span>POLYGON<br/><b className="text-gray-300">USDC · 137</b></span><span>SOLANA<br/><b className="text-gray-300">USDC · SVM</b></span><span>SUI<br/><b className="text-gray-300">USDC · Move</b></span></div></section>
           </aside>
         </div>
       </div>
@@ -242,13 +242,16 @@ export default function WalletDashboard() {
                     <input required type="number" min="0" step="0.000001" value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Stablecoin / call" className="input-dark" />
                     <select value={listingNetwork} onChange={(e) => setListingNetwork(e.target.value)} className="input-dark appearance-none cursor-pointer">
                       <option value="robinhood-mainnet">Robinhood · USDG</option>
+                      <option value="ethereum-mainnet">Ethereum · USDC</option>
                       <option value="base-mainnet">Base · USDC</option>
                       <option value="arbitrum-mainnet">Arbitrum · USDC</option>
                       <option value="polygon-mainnet">Polygon · USDC</option>
+                      <option value="solana-mainnet">Solana · USDC</option>
+                      <option value="sui-mainnet">Sui · USDC</option>
                     </select>
                     <button type="submit" className="btn btn-primary">Publish</button>
                   </form>
-                  {listings.length === 0 ? <div className="text-sm text-gray-500 py-8 text-center">No public endpoints yet.</div> : <div className="space-y-2">{listings.map((item) => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#1B1B1C] px-4 py-3 hover:border-emerald-500/30 border border-transparent"><div className="flex justify-between gap-3"><span className="text-white">{item.name}</span><span className="text-emerald-400">{item.price} {item.asset || "USDG"}</span></div><div className="flex justify-between gap-3 text-xs text-gray-500 mt-1"><span className="truncate">{item.url}</span><span className="shrink-0">{item.network?.replace("-mainnet", "") || "robinhood"}</span></div></a>)}</div>}
+                  {listings.length === 0 ? <div className="text-sm text-gray-500 py-8 text-center">No public endpoints yet.</div> : <div className="space-y-2">{listings.map((item) => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="block rounded-xl bg-[#1B1B1C] px-4 py-3 hover:border-emerald-500/30 border border-transparent"><div className="flex justify-between gap-3"><span className="text-white">{item.name}</span><span className="text-emerald-400">{item.price} {item.asset || "USDG"}</span></div><div className="flex justify-between gap-3 text-xs text-gray-500 mt-1"><span className="truncate">{item.url}</span><span className="shrink-0">{(item.network || "robinhood-mainnet").replace("-mainnet", "")}</span></div></a>)}</div>}
                 </div>
               ) : (active === "Transactions" || active === "Receipts") && authorized ? (
                 <div className="rounded-2xl border border-[#2a2a2e] bg-[#171719] p-5">

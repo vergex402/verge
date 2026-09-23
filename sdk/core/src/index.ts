@@ -1,58 +1,75 @@
-// @vergex402/core — framework-agnostic HTTP 402 payment verification for EVM rails.
-// Adapters (@vergex402/express, @vergex402/hono) only translate framework requests/responses.
+// @vergex402/core — framework-agnostic HTTP 402 payment verification.
+// Robinhood/USDG is the default flagship rail. EVM (Ethereum, Base, Arbitrum, Polygon),
+// Solana, and Sui are explicit opt-in rails. Adapters (@vergex402/express, @vergex402/hono)
+// only translate framework requests/responses — all verification logic lives here.
 
 import { randomBytes } from "node:crypto";
 import { createPublicClient, defineChain, http, parseUnits, type Address, type Chain, type Hash } from "viem";
 
-export const robinhoodChain = defineChain({
-  id: 4663,
-  name: "Robinhood Chain",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+const robinhoodChain = defineChain({
+  id: 4663, name: "Robinhood Chain", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: ["https://rpc.mainnet.chain.robinhood.com"] } },
   blockExplorers: { default: { name: "Robinhood Chain Explorer", url: "https://robinhoodchain.blockscout.com" } },
 });
+const ethereumChain = defineChain({ id: 1, name: "Ethereum", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://ethereum-rpc.publicnode.com"] } }, blockExplorers: { default: { name: "Etherscan", url: "https://etherscan.io" } } });
 const baseChain = defineChain({ id: 8453, name: "Base", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://mainnet.base.org"] } }, blockExplorers: { default: { name: "Basescan", url: "https://basescan.org" } } });
 const arbitrumChain = defineChain({ id: 42161, name: "Arbitrum One", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://arb1.arbitrum.io/rpc"] } }, blockExplorers: { default: { name: "Arbiscan", url: "https://arbiscan.io" } } });
 const polygonChain = defineChain({ id: 137, name: "Polygon", nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 }, rpcUrls: { default: { http: ["https://polygon-bor-rpc.publicnode.com"] } }, blockExplorers: { default: { name: "Polygonscan", url: "https://polygonscan.com" } } });
 
-export type PaymentNetwork = "robinhood-mainnet" | "base-mainnet" | "arbitrum-mainnet" | "polygon-mainnet";
+export type PaymentNetwork = "robinhood-mainnet" | "ethereum-mainnet" | "base-mainnet" | "arbitrum-mainnet" | "polygon-mainnet" | "solana-mainnet" | "sui-mainnet";
 
-export interface PaymentRail {
-  id: PaymentNetwork;
-  chainId: number;
-  chain: Chain;
-  asset: "USDG" | "USDC";
-  tokenContract: Address;
-  decimals: number;
-  explorerUrl: string;
-  defaultRpcUrl: string;
+interface EvmRail {
+  kind: "evm"; id: PaymentNetwork; chainId: number; chain: Chain; asset: "USDG" | "USDC";
+  tokenContract: Address; decimals: number; explorerUrl: string; defaultRpcUrl: string;
 }
+interface SolanaRail {
+  kind: "solana"; id: PaymentNetwork; asset: "USDC"; mint: string; decimals: number; explorerUrl: string; defaultRpcUrl: string;
+}
+interface SuiRail {
+  kind: "sui"; id: PaymentNetwork; asset: "USDC"; coinType: string; decimals: number; explorerUrl: string; defaultRpcUrl: string;
+}
+export type PaymentRail = EvmRail | SolanaRail | SuiRail;
 
 /** Official canonical stablecoin rails. Robinhood/USDG stays the Verge flagship/default. */
 export const PAYMENT_RAILS: Record<PaymentNetwork, PaymentRail> = {
   "robinhood-mainnet": {
-    id: "robinhood-mainnet", chainId: 4663, chain: robinhoodChain, asset: "USDG",
+    kind: "evm", id: "robinhood-mainnet", chainId: 4663, chain: robinhoodChain, asset: "USDG",
     tokenContract: "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", decimals: 6,
     explorerUrl: "https://robinhoodchain.blockscout.com", defaultRpcUrl: "https://rpc.mainnet.chain.robinhood.com",
   },
+  "ethereum-mainnet": {
+    kind: "evm", id: "ethereum-mainnet", chainId: 1, chain: ethereumChain, asset: "USDC",
+    tokenContract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", decimals: 6,
+    explorerUrl: "https://etherscan.io", defaultRpcUrl: "https://ethereum-rpc.publicnode.com",
+  },
   "base-mainnet": {
-    id: "base-mainnet", chainId: 8453, chain: baseChain, asset: "USDC",
+    kind: "evm", id: "base-mainnet", chainId: 8453, chain: baseChain, asset: "USDC",
     tokenContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6,
     explorerUrl: "https://basescan.org", defaultRpcUrl: "https://mainnet.base.org",
   },
   "arbitrum-mainnet": {
-    id: "arbitrum-mainnet", chainId: 42161, chain: arbitrumChain, asset: "USDC",
+    kind: "evm", id: "arbitrum-mainnet", chainId: 42161, chain: arbitrumChain, asset: "USDC",
     tokenContract: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", decimals: 6,
     explorerUrl: "https://arbiscan.io", defaultRpcUrl: "https://arb1.arbitrum.io/rpc",
   },
   "polygon-mainnet": {
-    id: "polygon-mainnet", chainId: 137, chain: polygonChain, asset: "USDC",
+    kind: "evm", id: "polygon-mainnet", chainId: 137, chain: polygonChain, asset: "USDC",
     tokenContract: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", decimals: 6,
     explorerUrl: "https://polygonscan.com", defaultRpcUrl: "https://polygon-bor-rpc.publicnode.com",
   },
+  "solana-mainnet": {
+    kind: "solana", id: "solana-mainnet", asset: "USDC",
+    mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6,
+    explorerUrl: "https://explorer.solana.com", defaultRpcUrl: "https://api.mainnet-beta.solana.com",
+  },
+  "sui-mainnet": {
+    kind: "sui", id: "sui-mainnet", asset: "USDC",
+    coinType: "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC", decimals: 6,
+    explorerUrl: "https://suiscan.xyz/mainnet", defaultRpcUrl: "https://graphql.mainnet.sui.io/graphql",
+  },
 };
 
-export const USDG_MAINNET = PAYMENT_RAILS["robinhood-mainnet"].tokenContract;
+export const USDG_MAINNET = (PAYMENT_RAILS["robinhood-mainnet"] as EvmRail).tokenContract;
 export const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 export function getRail(network: PaymentNetwork | string = "robinhood-mainnet"): PaymentRail {
@@ -66,7 +83,7 @@ export function listRails(): PaymentRail[] { return Object.values(PAYMENT_RAILS)
 export interface PaywallOptions {
   amount: number;
   recipient: string;
-  /** Defaults to Robinhood/USDG. Opt into Base, Arbitrum, or Polygon explicitly. */
+  /** Defaults to Robinhood/USDG. Opt into Ethereum, Base, Arbitrum, Polygon, Solana, or Sui explicitly. */
   network?: PaymentNetwork;
   rpcUrl?: string;
   replayStore?: ReplayStore;
@@ -82,19 +99,38 @@ export interface Challenge {
   nonce: string;
   amount: number;
   token: string;
-  tokenContract: Address;
+  tokenRef: string;
   network: PaymentNetwork;
-  chainId: number;
+  chainId: number | null;
   recipient: string;
   memo: string;
 }
 
 export function defaultRpcUrl(network: PaymentNetwork | string): string { return getRail(network).defaultRpcUrl; }
 
+function tokenRefOf(rail: PaymentRail): string {
+  if (rail.kind === "evm") return rail.tokenContract;
+  if (rail.kind === "solana") return rail.mint;
+  return rail.coinType;
+}
+function chainIdOf(rail: PaymentRail): number | null { return rail.kind === "evm" ? rail.chainId : null; }
+/** Numeric chain ID for EVM rails, null for Solana/Sui (no integer chain ID). */
+export function railChainId(rail: PaymentRail): number | null { return chainIdOf(rail); }
+
+/** Human-readable chain/network label, safe across EVM, Solana, and Sui rails. */
+export function railChainName(rail: PaymentRail): string {
+  if (rail.kind === "evm") return rail.chain.name;
+  if (rail.kind === "solana") return "Solana";
+  return "Sui";
+}
+
+/** Token/mint/coin-type reference, safe across EVM, Solana, and Sui rails. */
+export function railTokenRef(rail: PaymentRail): string { return tokenRefOf(rail); }
+
 export function buildChallenge(opts: PaywallOptions, realm: string, network: PaymentNetwork): Challenge {
   const rail = getRail(network);
   const nonce = randomBytes(16).toString("hex");
-  return { nonce, amount: opts.amount, token: rail.asset, tokenContract: rail.tokenContract, network, chainId: rail.chainId, recipient: opts.recipient, memo: `${realm}:${nonce}` };
+  return { nonce, amount: opts.amount, token: rail.asset, tokenRef: tokenRefOf(rail), network, chainId: chainIdOf(rail), recipient: opts.recipient, memo: `${realm}:${nonce}` };
 }
 
 export function challengeHeaders(challenge: Challenge, realm: string): Record<string, string> {
@@ -102,7 +138,7 @@ export function challengeHeaders(challenge: Challenge, realm: string): Record<st
     "WWW-Authenticate": `x402 realm="${realm}", nonce="${challenge.nonce}", amount="${challenge.amount}", recipient="${challenge.recipient}", network="${challenge.network}"`,
     "X-Pay-Token": challenge.token,
     "X-Pay-Network": challenge.network,
-    "X-Pay-Chain-Id": String(challenge.chainId),
+    "X-Pay-Chain-Id": challenge.chainId === null ? "" : String(challenge.chainId),
     "X-Pay-Amount": String(challenge.amount),
     "X-Pay-Recipient": challenge.recipient,
     "X-Pay-Nonce": challenge.nonce,
@@ -117,9 +153,9 @@ export type PaymentOutcome =
   | { kind: "unlocked"; rail: PaymentRail }
   | { kind: "error"; detail: string };
 
-interface VerifyArgs { client: ReturnType<typeof createPublicClient>; tx: Hash; recipient: string; amount: number; rail: PaymentRail; }
+interface EvmVerifyArgs { client: ReturnType<typeof createPublicClient>; tx: Hash; recipient: string; amount: number; rail: EvmRail; }
 
-export async function verifyStablecoinTransfer({ client, tx, recipient, amount, rail }: VerifyArgs): Promise<boolean> {
+export async function verifyStablecoinTransfer({ client, tx, recipient, amount, rail }: EvmVerifyArgs): Promise<boolean> {
   if (!tx || !/^0x[a-fA-F0-9]{64}$/.test(tx)) return false;
   const receipt = await client.getTransactionReceipt({ hash: tx });
   if (!receipt || receipt.status !== "success") return false;
@@ -139,6 +175,61 @@ export async function verifyStablecoinTransfer({ client, tx, recipient, amount, 
 /** Backward-compatible Robinhood/USDG verifier alias. */
 export const verifyUsdgTransfer = verifyStablecoinTransfer;
 
+async function jsonRpc(rpcUrl: string, method: string, params: unknown[]): Promise<unknown> {
+  const res = await fetch(rpcUrl, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const body = await res.json() as { result?: unknown; error?: { message?: string } };
+  if (body.error) throw new Error(body.error.message || "RPC error");
+  return body.result;
+}
+
+/** Verifies a USDC transfer on Solana by inspecting confirmed transaction token balance deltas. */
+export async function verifySolanaUsdcTransfer(rpcUrl: string, signature: string, recipientOwner: string, amount: number, rail: SolanaRail): Promise<boolean> {
+  if (!signature || !/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(signature)) return false;
+  const result = await jsonRpc(rpcUrl, "getTransaction", [signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }]) as {
+    meta?: { err: unknown; preTokenBalances?: Array<{ owner?: string; mint?: string; uiTokenAmount?: { amount: string } }>; postTokenBalances?: Array<{ owner?: string; mint?: string; uiTokenAmount?: { amount: string } }> };
+  } | null;
+  if (!result || !result.meta || result.meta.err) return false;
+  const pre = result.meta.preTokenBalances || [];
+  const post = result.meta.postTokenBalances || [];
+  const amountRaw = BigInt(Math.round(amount * 10 ** rail.decimals));
+  const preFor = (owner: string) => pre.find((b) => b.owner === owner && b.mint === rail.mint);
+  const postFor = (owner: string) => post.find((b) => b.owner === owner && b.mint === rail.mint);
+  const recipientPost = postFor(recipientOwner);
+  if (!recipientPost) return false;
+  const before = BigInt(preFor(recipientOwner)?.uiTokenAmount?.amount || "0");
+  const after = BigInt(recipientPost.uiTokenAmount?.amount || "0");
+  return after - before >= amountRaw;
+}
+
+/** Verifies a USDC transfer on Sui by inspecting the finalized transaction's balance changes via Sui GraphQL RPC (JSON-RPC was decommissioned in 2026). */
+export async function verifySuiUsdcTransfer(rpcUrl: string, digest: string, recipient: string, amount: number, rail: SuiRail): Promise<boolean> {
+  if (!digest || !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(digest)) return false;
+  const query = `query($d: String!) { transaction(digest: $d) { effects { status balanceChanges(first: 50) { nodes { owner { address } coinType { repr } amount } } } } }`;
+  const res = await fetch(rpcUrl, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query, variables: { d: digest } }),
+  });
+  const body = await res.json() as {
+    data?: { transaction?: { effects?: { status?: string; balanceChanges?: { nodes?: Array<{ owner?: { address?: string }; coinType?: { repr?: string }; amount?: string }> } } } };
+    errors?: Array<{ message?: string }>;
+  };
+  if (body.errors?.length) throw new Error(body.errors[0]?.message || "Sui GraphQL error");
+  const effects = body.data?.transaction?.effects;
+  if (!effects || effects.status !== "SUCCESS") return false;
+  const amountRaw = BigInt(Math.round(amount * 10 ** rail.decimals));
+  const recipientLower = recipient.toLowerCase();
+  for (const change of effects.balanceChanges?.nodes || []) {
+    if (change.coinType?.repr !== rail.coinType) continue;
+    if ((change.owner?.address || "").toLowerCase() !== recipientLower) continue;
+    const delta = BigInt(change.amount || "0");
+    if (delta >= amountRaw) return true;
+  }
+  return false;
+}
+
 export async function evaluatePayment(opts: PaywallOptions, tx: string | undefined | null, nonce: string | undefined | null): Promise<PaymentOutcome> {
   const network = opts.network || "robinhood-mainnet";
   const rail = getRail(network);
@@ -152,8 +243,16 @@ export async function evaluatePayment(opts: PaywallOptions, tx: string | undefin
     const replayKey = `${network}:${tx.toLowerCase()}`;
     const alreadyUsed = opts.replayStore ? await opts.replayStore.has(replayKey) : memoryReplayStore.has(replayKey);
     if (alreadyUsed) return { kind: "replayed" };
-    const client = createPublicClient({ chain: rail.chain, transport: http(opts.rpcUrl || rail.defaultRpcUrl) });
-    const ok = await verifyStablecoinTransfer({ client, tx: tx as Hash, recipient: opts.recipient, amount: opts.amount, rail });
+
+    let ok = false;
+    if (rail.kind === "evm") {
+      const client = createPublicClient({ chain: rail.chain, transport: http(opts.rpcUrl || rail.defaultRpcUrl) });
+      ok = await verifyStablecoinTransfer({ client, tx: tx as Hash, recipient: opts.recipient, amount: opts.amount, rail });
+    } else if (rail.kind === "solana") {
+      ok = await verifySolanaUsdcTransfer(opts.rpcUrl || rail.defaultRpcUrl, tx, opts.recipient, opts.amount, rail);
+    } else {
+      ok = await verifySuiUsdcTransfer(opts.rpcUrl || rail.defaultRpcUrl, tx, opts.recipient, opts.amount, rail);
+    }
     if (!ok) return { kind: "invalid" };
     if (opts.replayStore) await opts.replayStore.add(replayKey); else memoryReplayStore.add(replayKey);
     return { kind: "unlocked", rail };

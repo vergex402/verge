@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { query } from "@/app/lib/db";
-import { listRails } from "@vergex402/core";
+import { listRails, railChainId, railChainName, railTokenRef } from "@vergex402/core";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest) {
     name: "Verge Gateway",
     version: "1.0",
     network: { name: "Robinhood Chain", chainId: 4663, asset: "USDG", flagship: true },
-    supportedRails: listRails().map(({ id, chainId, chain, asset, tokenContract, decimals, explorerUrl }) => ({ id, chainId, name: chain.name, asset, tokenContract, decimals, explorerUrl })),
+    supportedRails: listRails().map((rail) => ({ id: rail.id, chainId: railChainId(rail), name: railChainName(rail), asset: rail.asset, tokenContract: railTokenRef(rail), decimals: rail.decimals, explorerUrl: rail.explorerUrl })),
     protocol: "x402",
     discovery: {
       documentation: `${baseUrl}/docs`,

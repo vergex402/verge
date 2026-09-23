@@ -70,7 +70,8 @@ export function ensureSchema(): Promise<void> {
       );
       ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS payment_network TEXT NOT NULL DEFAULT 'robinhood-mainnet';
       ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS payment_asset TEXT NOT NULL DEFAULT 'USDG';
-      ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS payment_chain_id INTEGER NOT NULL DEFAULT 4663;
+      ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS payment_chain_id INTEGER;
+      ALTER TABLE endpoints ALTER COLUMN payment_chain_id DROP NOT NULL;
       ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS requests_count BIGINT NOT NULL DEFAULT 0;
       ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS paid_calls_count BIGINT NOT NULL DEFAULT 0;
       ALTER TABLE endpoints ADD COLUMN IF NOT EXISTS settlement_volume DOUBLE PRECISION NOT NULL DEFAULT 0;

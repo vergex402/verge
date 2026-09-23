@@ -1,6 +1,6 @@
 {
   "name": "@vergex402/express",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Express middleware for HTTP 402 USDG micropayments on Robinhood Chain via Verge.",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,7 +32,7 @@
     "express": "^4.0.0 || ^5.0.0"
   },
   "dependencies": {
-    "@vergex402/core": "^0.2.1",
+    "@vergex402/core": "^0.3.0",
     "viem": "^2.0.0"
   },
   "devDependencies": {
