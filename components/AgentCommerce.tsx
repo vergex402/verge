@@ -1,10 +1,10 @@
 import Reveal from "@/components/Reveal";
 
 const features = [
-  { title: "HTTP 402 payment flow", body: "Use the payment-required response pattern to challenge a request and verify the retry against settlement evidence." },
-  { title: "AI-to-AI transactions", body: "Agents autonomously discover, negotiate, and pay for API access without human intervention." },
-  { title: "Non-custodial wallets", body: "Agents hold their own keys. Payments are direct on-chain transfers, not IOUs." },
-  { title: "Revenue sharing", body: "Facilitator fee is 0.5%. Self-host for 0%. Open source, MIT licensed." },
+  { title: "Issued nonce challenge", body: "Every 402 response carries a one-time nonce, amount, recipient, token, network, and memo for the caller to satisfy." },
+  { title: "Proof retry", body: "The caller retries with X-Pay-Tx and X-Pay-Nonce. Verge validates settlement before your handler runs." },
+  { title: "Replay protection", body: "Successful transaction hashes are rejected on reuse. Bring Redis/Postgres stores when you run multiple workers." },
+  { title: "Agent or app ready", body: "Agents can automate the whole loop, while apps and scripts can use the same paid endpoint contract." },
 ];
 
 export default function AgentCommerce() {
@@ -24,8 +24,7 @@ export default function AgentCommerce() {
             </Reveal>
             <Reveal delay={100}>
               <p className="text-gray-400 text-sm md:text-base mb-8 max-w-[520px]">
-                Agents and applications can charge for API access through an HTTP 402 payment challenge. Use USDG on Robinhood Chain or a supported stablecoin rail through the SDK.
-                Wallet authorization is only needed for private portal tools.
+                Agents and applications can charge for API access through a complete HTTP 402 loop: challenge, stablecoin settlement, proof retry, nonce validation, and replay protection. Wallet authorization is only needed for private portal tools.
               </p>
             </Reveal>
           </div>

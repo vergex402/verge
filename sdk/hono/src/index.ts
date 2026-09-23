@@ -35,6 +35,10 @@ export function paywall(opts: PaywallOptions): HonoLikeHandler {
 
     const outcome = await evaluatePayment(opts, tx, nonce);
 
+    if ((outcome as { kind: string }).kind === "nonce_invalid") {
+      return c.json({ error: "Payment nonce is unknown or expired", code: "NONCE_INVALID" }, 402);
+    }
+
     switch (outcome.kind) {
       case "challenge": {
         for (const [key, value] of Object.entries(outcome.headers)) c.header(key, value);

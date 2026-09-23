@@ -111,12 +111,19 @@ export interface PaywallOptions {
   network?: PaymentNetwork;
   rpcUrl?: string;
   replayStore?: ReplayStore;
+  /** Stores issued nonces so a paid retry must correspond to a real 402 challenge. Defaults to in-memory storage. */
+  challengeStore?: ChallengeStore;
   realm?: string;
 }
 
 export interface ReplayStore {
   has(txHash: string): Promise<boolean> | boolean;
   add(txHash: string): Promise<void> | void;
+}
+
+export interface ChallengeStore {
+  add(challenge: Challenge): Promise<void> | void;
+  consume(nonce: string, expected: Pick<Challenge, "network" | "recipient" | "amount">): Promise<Challenge | null> | Challenge | null;
 }
 
 export interface Challenge {
@@ -166,12 +173,14 @@ export function challengeHeaders(challenge: Challenge, realm: string): Record<st
     "X-Pay-Amount": String(challenge.amount),
     "X-Pay-Recipient": challenge.recipient,
     "X-Pay-Nonce": challenge.nonce,
+    "X-Pay-Memo": challenge.memo,
   };
 }
 
 export type PaymentOutcome =
   | { kind: "challenge"; challenge: Challenge; headers: Record<string, string> }
   | { kind: "nonce_required" }
+  | { kind: "nonce_invalid" }
   | { kind: "replayed" }
   | { kind: "invalid" }
   | { kind: "unlocked"; rail: PaymentRail }
@@ -258,12 +267,16 @@ export async function evaluatePayment(opts: PaywallOptions, tx: string | undefin
   const network = opts.network || "robinhood-mainnet";
   const rail = getRail(network);
   const realm = opts.realm || "verge";
+  const challengeStore = opts.challengeStore || memoryChallengeStore;
   if (!tx) {
     const challenge = buildChallenge(opts, realm, network);
+    await challengeStore.add(challenge);
     return { kind: "challenge", challenge, headers: challengeHeaders(challenge, realm) };
   }
   try {
     if (!nonce) return { kind: "nonce_required" };
+    const challenge = await challengeStore.consume(nonce, { network, recipient: opts.recipient, amount: opts.amount });
+    if (!challenge) return { kind: "nonce_invalid" };
     const replayKey = `${network}:${tx.toLowerCase()}`;
     const alreadyUsed = opts.replayStore ? await opts.replayStore.has(replayKey) : memoryReplayStore.has(replayKey);
     if (alreadyUsed) return { kind: "replayed" };
@@ -299,4 +312,33 @@ export async function evaluatePayment(opts: PaywallOptions, tx: string | undefin
   } catch (e) { return { kind: "error", detail: String(e instanceof Error ? e.message : e) }; }
 }
 
+export function paymentProofHeaders(txHash: string, nonce: string): Record<string, string> {
+  return { "X-Pay-Tx": txHash, "X-Pay-Nonce": nonce };
+}
+
+export function parseX402Authenticate(header: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const body = header.trim().replace(/^x402\s+/i, "");
+  for (const part of body.split(/,\s*/)) {
+    const [key, ...rest] = part.split("=");
+    if (!key || rest.length === 0) continue;
+    out[key.trim()] = rest.join("=").trim().replace(/^"|"$/g, "");
+  }
+  return out;
+}
+
 const memoryReplayStore = new Set<string>();
+const memoryChallengeStore: ChallengeStore = {
+  _items: new Map<string, Challenge>(),
+  add(challenge: Challenge) { (this._items as Map<string, Challenge>).set(challenge.nonce, challenge); },
+  consume(nonce: string, expected: Pick<Challenge, "network" | "recipient" | "amount">) {
+    const items = this._items as Map<string, Challenge>;
+    const challenge = items.get(nonce);
+    items.delete(nonce);
+    if (!challenge) return null;
+    if (challenge.network !== expected.network) return null;
+    if (challenge.recipient.toLowerCase() !== expected.recipient.toLowerCase()) return null;
+    if (challenge.amount !== expected.amount) return null;
+    return challenge;
+  },
+} as ChallengeStore & { _items: Map<string, Challenge> };

@@ -29,7 +29,7 @@ export default function CodeSnippet() {
               </Reveal>
               <Reveal delay={200}>
                 <div className="space-y-2 md:space-y-3 lg:space-y-4 mb-4 md:mb-5 lg:mb-8">
-                  {["Instant USDG settlement", "Nonce-signed, replay-safe", "Express / Hono / Fastify SDKs", "Self-host with BYO Robinhood RPC"].map((item) => (
+                  {["Instant USDG settlement", "Nonce-signed, replay-safe", "Express / Hono SDKs", "Self-host with BYO Robinhood RPC"].map((item) => (
                     <div key={item} className="flex items-center gap-2 md:gap-3">
                       <span className="text-emerald-400 text-sm">&#x2713;</span>
                       <span className="text-gray-300 text-sm md:text-base">{item}</span>
@@ -71,7 +71,7 @@ export default function CodeSnippet() {
                   {"\n"}
                   {"  "}recipient: process.env.WALLET,{"\n"}
                   {"  "}network:{" "}
-                  <span className="text-emerald-400">&quot;Robinhood-mainnet&quot;</span>,{"\n"}
+                  <span className="text-emerald-400">&quot;robinhood-mainnet&quot;</span>,{"\n"}
                   {"}"}));
                 </pre>
               </div>

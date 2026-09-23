@@ -25,6 +25,11 @@ export function paywall(opts: PaywallOptions): RequestHandler {
 
     const outcome = await evaluatePayment(opts, tx, nonce);
 
+    if ((outcome as { kind: string }).kind === "nonce_invalid") {
+      res.status(402).json({ error: "Payment nonce is unknown or expired", code: "NONCE_INVALID" });
+      return;
+    }
+
     switch (outcome.kind) {
       case "challenge": {
         res.status(402);

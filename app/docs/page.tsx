@@ -13,7 +13,7 @@ const rails = [
   ["sui-mainnet", "Sui", "Move", "USDC", "Explicit opt-in Move rail"],
 ];
 
-const toc = ["Overview", "Install", "Express", "Hono", "x402 flow", "Multichain", "Portal", "API keys", "Marketplace", "Reference"];
+const toc = ["Overview", "Install", "Express", "Hono", "x402 flow", "Client retry", "Security", "Multichain", "Portal", "API keys", "Marketplace", "Reference"];
 
 function Code({ children }: { children: string }) {
   return <pre className="code-block my-4">{children}</pre>;
@@ -137,8 +137,36 @@ HTTP/1.1 200 OK
 { "ok": true, "message": "unlocked" }`}</Code>
           </Section>
 
+          <Section id="client-retry" title="Client retry helper">
+            <p className="leading-7 ink-mid">A caller does not need a Verge account. It only needs to understand the 402 response, pay the requested rail, then retry with the proof headers. The core package now exports helpers for parsing the challenge and building retry headers.</p>
+            <Code>{`import { parseX402Authenticate, paymentProofHeaders } from "@vergex402/core";
+
+const first = await fetch("https://api.example.com/premium");
+if (first.status === 402) {
+  const challenge = parseX402Authenticate(first.headers.get("www-authenticate") || "");
+  // Your wallet/payment engine sends challenge.amount to challenge.recipient
+  // on challenge.network, then returns the settlement transaction hash.
+  const txHash = await payStablecoin(challenge);
+
+  const unlocked = await fetch("https://api.example.com/premium", {
+    headers: paymentProofHeaders(txHash, challenge.nonce),
+  });
+}`}</Code>
+          </Section>
+
+          <Section id="security" title="Security model">
+            <div className="grid gap-4 md:grid-cols-2">
+              {[
+                ["Issued nonce required", "A paid retry must present a nonce that the middleware actually issued. Unknown or already-consumed nonces return NONCE_INVALID."],
+                ["Replay-safe transaction hashes", "Each tx hash is keyed by network and rejected after the first successful unlock. Use a durable ReplayStore in multi-process production."],
+                ["Settlement verification", "EVM rails inspect stablecoin Transfer logs; Solana inspects SPL token-balance deltas; Sui inspects finalized balance changes."],
+                ["Stateless option", "The built-in stores are in-memory for simple servers. Bring Redis/Postgres stores when running multiple workers or serverless replicas."],
+              ].map(([title, text]) => <div key={title} className="rounded-xl border border-line bg-card p-4"><h3 className="mb-2 font-semibold ink">{title}</h3><p className="text-sm leading-6 ink-mid">{text}</p></div>)}
+            </div>
+          </Section>
+
           <Section id="multichain" title="Multichain: one option, not a different command">
-            <p className="leading-7 ink-mid">You were right to ask: every chain has its own identifier, token, verifier path, and RPC. In Verge, you do not run a different command for each chain. You set <code>network</code> in the SDK options. If omitted, Verge uses <code>robinhood-mainnet</code>.</p>
+            <p className="leading-7 ink-mid">You were right to ask: every chain has its own identifier, token, verifier path, and RPC. In Verge, you do not run a different command for each chain. You set <code>network</code> in the SDK options. If omitted, Verge uses <code>robinhood-mainnet</code>. The 402 response tells the caller which network, token, recipient, amount, and nonce to use.</p>
             <div className="my-5 overflow-x-auto rounded-2xl border border-line bg-card">
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead className="border-b border-line text-[11px] uppercase tracking-[0.14em] ink-dim"><tr><th className="p-4">Network string</th><th className="p-4">Chain</th><th className="p-4">Chain ID</th><th className="p-4">Asset</th><th className="p-4">Notes</th></tr></thead>
