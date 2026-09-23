@@ -211,6 +211,7 @@ curl https://vergesnowy.com/api/demo`}</Code>
                 ["Express SDK", "https://www.npmjs.com/package/@vergex402/express"],
                 ["Hono SDK", "https://www.npmjs.com/package/@vergex402/hono"],
                 ["Source", "https://github.com/vergex402/verge"],
+                ["$VERGE contract · Robinhood Chain", "https://robinhoodchain.blockscout.com/token/0xb73b18267d23087e3af1390edfeb8c4308921d59"],
                 ["x402 spec", "https://www.x402.org"],
                 ["Live catalog", "/api/catalog"],
                 ["Console", "/app"],

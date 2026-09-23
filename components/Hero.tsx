@@ -4,12 +4,15 @@ import { useEffect, useRef } from "react";
 import Reveal from "@/components/Reveal";
 
 const WORDS = ["agent", "machine", "robot", "AI", "API"];
+const tokenContract = process.env.NEXT_PUBLIC_VERGE_TOKEN_CA || "0xb73b18267d23087e3af1390edfeb8c4308921d59";
 function ContractButton() {
+  const hasContract = /^0x[a-fA-F0-9]{40}$/.test(tokenContract);
+  const contractLabel = hasContract ? tokenContract : "Token details coming soon";
   return (
     <div className="flex flex-col items-center gap-3 pointer-events-auto">
     <div className="rounded-xl border border-white/10 bg-[#171719]/85 px-4 py-2.5 text-xs text-white/55 backdrop-blur">
-      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-white/35">Token contract</span>
-      <span className="ml-3 text-white/65">Coming soon</span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-white/35">{hasContract ? "CA" : "Token"}</span>
+      <span className="ml-3 break-all font-mono text-white/65">{contractLabel}</span>
     </div>
     <a
         href="https://ponsralph.xyz"
