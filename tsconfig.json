@@ -23,6 +23,9 @@
       }
     ],
     "paths": {
+      "@vergex402/core": [
+        "./sdk/core/src/index.ts"
+      ],
       "@/*": [
         "./*"
       ]
