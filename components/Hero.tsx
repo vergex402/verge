@@ -100,7 +100,7 @@ export default function Hero() {
       {/* Content */}
       <div className="flex-1 flex items-center justify-center px-3 md:px-5 lg:px-8 relative z-20 pt-16">
         <div className="text-center px-2 md:px-3 lg:px-6 max-w-[90%] md:max-w-none relative z-20">
-          <Reveal>
+          <div className="hero-ready">
             {/* Badge */}
             <div className="mb-6 md:mb-8">
               <span className="bg-emerald-500 dark:bg-emerald-400 text-black px-1.5 md:px-2 lg:px-3 py-0.5 md:py-1 rounded font-semibold inline-block font-funnel-display">
@@ -131,7 +131,7 @@ export default function Hero() {
               </span>{" "}
               economy
             </p>
-          </Reveal>
+          </div>
 
         </div>
       </div>
