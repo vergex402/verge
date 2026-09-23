@@ -1,214 +1,196 @@
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 
-export const metadata = { title: "Verge — Docs" };
+export const metadata = { title: "Verge — Developer Docs" };
+
+const rails = [
+  ["robinhood-mainnet", "Robinhood Chain", "4663", "USDG", "Default / flagship rail"],
+  ["ethereum-mainnet", "Ethereum", "1", "USDC", "Explicit opt-in EVM rail"],
+  ["base-mainnet", "Base", "8453", "USDC", "Explicit opt-in EVM rail"],
+  ["arbitrum-mainnet", "Arbitrum One", "42161", "USDC", "Explicit opt-in EVM rail"],
+  ["polygon-mainnet", "Polygon", "137", "USDC", "Explicit opt-in EVM rail"],
+  ["solana-mainnet", "Solana", "SVM", "USDC", "Explicit opt-in SVM rail"],
+  ["sui-mainnet", "Sui", "Move", "USDC", "Explicit opt-in Move rail"],
+];
+
+const toc = ["Overview", "Install", "Express", "Hono", "x402 flow", "Multichain", "Portal", "API keys", "Marketplace", "Reference"];
+
+function Code({ children }: { children: string }) {
+  return <pre className="code-block my-4">{children}</pre>;
+}
+
+function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return <section id={id} className="scroll-mt-28 border-t border-line pt-10 mt-10"><h2 className="font-display text-[28px] font-semibold tracking-[-0.03em] ink mb-4">{title}</h2>{children}</section>;
+}
 
 export default function Docs() {
   return (
     <main className="bg-paper">
       <NavBar />
+      <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 lg:grid-cols-[260px_1fr] lg:px-8">
+        <aside className="hidden lg:block">
+          <div className="sticky top-24 rounded-2xl border border-line bg-card p-4">
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.16em] ink-dim">Verge manual</div>
+            <nav className="space-y-1">
+              {toc.map((item) => <a key={item} href={`#${item.toLowerCase().replaceAll(" ", "-")}`} className="block rounded-lg px-3 py-2 text-sm ink-mid transition hover:bg-elev hover:ink">{item}</a>)}
+            </nav>
+            <div className="mt-5 rounded-xl border border-line bg-soft p-3 text-xs leading-5 ink-mid">
+              Short answer: x402 lets software pay for paid HTTP endpoints. Verge provides the middleware, verifier, app console, marketplace, and wallet/API-key layer.
+            </div>
+          </div>
+        </aside>
 
-      <article className="max-w-[760px] mx-auto px-6 py-20">
-        <span className="tag-402 mb-6">docs · quickstart</span>
-        <h1 className="font-display text-[44px] font-semibold tracking-[-0.03em] leading-[1.05] ink mb-4">
-          Verge in 60 seconds.
-        </h1>
-        <p className="ink-mid text-[17px] leading-[1.55] mb-6">
-          Monetize any HTTP endpoint with USDG on Robinhood. Wallet-authenticated, no email or password.
-        </p>
-        <div className="flex flex-wrap gap-2 mb-12">
-          <a href="https://www.npmjs.com/package/@vergex402/express" target="_blank" rel="noopener"><img src="https://img.shields.io/npm/v/@vergex402/express?label=%40vergex402%2Fexpress&color=10b981" alt="@vergex402/express on npm" /></a>
-          <a href="https://www.npmjs.com/package/@vergex402/hono" target="_blank" rel="noopener"><img src="https://img.shields.io/npm/v/@vergex402/hono?label=%40vergex402%2Fhono&color=10b981" alt="@vergex402/hono on npm" /></a>
-          <a href="https://github.com/vergex402/verge" target="_blank" rel="noopener"><img src="https://img.shields.io/badge/GitHub-vergex402%2Fverge-black?logo=github" alt="GitHub repository" /></a>
-        </div>
+        <article className="min-w-0 max-w-[920px]">
+          <span className="tag-402 mb-6">docs · complete guide</span>
+          <h1 className="font-display text-[44px] font-semibold tracking-[-0.04em] leading-[1.02] ink md:text-[64px]">Build paid APIs for agents, apps, and users.</h1>
+          <p className="mt-5 max-w-3xl text-[17px] leading-7 ink-mid md:text-[19px]">
+            Verge is an HTTP 402 gateway and SDK. Your server returns a payment challenge, the caller pays on a supported rail, then retries with the transaction proof. Robinhood Chain + USDG is the default; other rails are selected with a single <code>network</code> option.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a href="/app" className="btn btn-primary">Open console →</a>
+            <a href="/api/catalog" target="_blank" rel="noopener" className="btn btn-ghost">View API catalog</a>
+            <a href="https://github.com/vergex402/verge" target="_blank" rel="noopener" className="btn btn-ghost">GitHub</a>
+          </div>
 
-        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
-          1. Install
-        </h2>
-        <p className="ink-mid mb-3 leading-[1.55] text-[15px]">Pick the adapter for your framework — both verify the same USDG payments on Robinhood Chain.</p>
-        <pre className="code-block">npm install @vergex402/express</pre>
-        <pre className="code-block">npm install @vergex402/hono hono</pre>
+          <Section id="overview" title="Overview">
+            <div className="grid gap-4 md:grid-cols-3">
+              {[
+                ["What is x402?", "A protocol pattern for HTTP 402 Payment Required: request → challenge → payment → retry → access."],
+                ["Who pays?", "Agents, apps, scripts, or humans. The protocol is not agent-only; agents are the strongest use case because they can pay per request automatically."],
+                ["What does Verge add?", "Express/Hono middleware, stablecoin verification, replay protection hooks, wallet console, marketplace listings, API keys, receipts, and a machine-readable catalog."],
+              ].map(([title, text]) => <div key={title} className="card"><h3 className="mb-2 text-lg font-semibold ink">{title}</h3><p className="text-sm leading-6 ink-mid">{text}</p></div>)}
+            </div>
+          </Section>
 
-        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
-          2. Drop in the middleware
-        </h2>
-        <pre className="code-block">{`import express from "express";
+          <Section id="install" title="Install">
+            <p className="leading-7 ink-mid">Pick the adapter for your server framework. Both adapters call the same <code>@vergex402/core</code> verifier.</p>
+            <Code>{`npm install @vergex402/express
+npm install @vergex402/hono hono`}</Code>
+            <p className="leading-7 ink-mid">Environment you normally need:</p>
+            <Code>{`WALLET=0xYourRecipientWallet
+# optional: overrides the public/default RPC for the selected network
+ROBINHOOD_RPC_URL=https://rpc.mainnet.chain.robinhood.com
+# optional: used as primary RPC when configured
+ALCHEMY_API_KEY=...`}</Code>
+          </Section>
+
+          <Section id="express" title="Express quickstart">
+            <Code>{`import express from "express";
 import { paywall } from "@vergex402/express";
 
 const app = express();
+const recipient = process.env.WALLET;
+if (!recipient) throw new Error("WALLET is required");
 
 app.use("/api/premium", paywall({
-  amount: 0.001,                   // USDG
-  recipient: process.env.WALLET,
-  network: "robinhood-mainnet",
+  amount: 0.001,
+  recipient,
+  network: "robinhood-mainnet", // default rail: USDG on chain 4663
 }));
 
-app.get("/api/premium", (req, res) => {
+app.get("/api/premium", (_req, res) => {
   res.json({ ok: true, message: "unlocked" });
 });
 
-app.listen(3000);`}</pre>
+app.listen(3000);`}</Code>
+          </Section>
 
-        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
-          Using Hono instead?
-        </h2>
-        <pre className="code-block">{`import { Hono } from "hono";
+          <Section id="hono" title="Hono quickstart">
+            <Code>{`import { Hono } from "hono";
 import { paywall } from "@vergex402/hono";
 
 const app = new Hono();
+const recipient = process.env.WALLET;
+if (!recipient) throw new Error("WALLET is required");
 
 app.use("/api/premium", paywall({
   amount: 0.001,
-  recipient: process.env.WALLET,
+  recipient,
   network: "robinhood-mainnet",
 }));
 
-app.get("/api/premium", (c) => c.json({ ok: true, message: "unlocked" }));`}</pre>
+app.get("/api/premium", (c) => c.json({ ok: true, message: "unlocked" }));`}</Code>
+          </Section>
 
-        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
-          3. Test the 402 flow
-        </h2>
-        <p className="ink-mid mb-4 leading-[1.55]">
-          Without payment, your endpoint will challenge:
-        </p>
-        <pre className="code-block">{`curl -i http://localhost:3000/api/premium
+          <Section id="x402-flow" title="The x402 request flow">
+            <ol className="space-y-4 leading-7 ink-mid">
+              <li><strong className="ink">1. Caller requests a protected route.</strong> Without proof, Verge returns HTTP 402 and payment headers.</li>
+              <li><strong className="ink">2. Caller pays the requested asset.</strong> The challenge includes amount, recipient, network, token reference, and nonce.</li>
+              <li><strong className="ink">3. Caller retries with proof.</strong> Send <code>X-Pay-Tx</code> and <code>X-Pay-Nonce</code>.</li>
+              <li><strong className="ink">4. Middleware verifies settlement.</strong> EVM rails check stablecoin Transfer logs; Solana and Sui use their own transaction/balance verification paths.</li>
+            </ol>
+            <Code>{`curl -i http://localhost:3000/api/premium
 
 HTTP/1.1 402 Payment Required
-WWW-Authenticate: x402 realm="verge", nonce="8f3c2d", amount="0.001", …
-X-Pay-Recipient: 7Aa3…q9Px
+WWW-Authenticate: x402 realm="verge", nonce="8f3c2d", amount="0.001", recipient="0x...", network="robinhood-mainnet"
+X-Pay-Token: USDG
+X-Pay-Network: robinhood-mainnet
+X-Pay-Chain-Id: 4663
 X-Pay-Amount: 0.001
-X-Pay-Nonce: 8f3c2d
-
-{
-  "error": "Payment required",
-  "challenge": { … }
-}`}</pre>
-
-        <p className="ink-mid mt-6 mb-4 leading-[1.55]">
-          The agent pays USDG with the nonce as memo, then retries:
-        </p>
-        <pre className="code-block">{`curl -i http://localhost:3000/api/premium \\
-  -H "X-Pay-Tx: 5K4f…3Ax" \\
+X-Pay-Recipient: 0x...
+X-Pay-Nonce: 8f3c2d`}</Code>
+            <Code>{`curl -i http://localhost:3000/api/premium \
+  -H "X-Pay-Tx: 0xYourSettlementTx" \
   -H "X-Pay-Nonce: 8f3c2d"
 
 HTTP/1.1 200 OK
-{ "ok": true, "message": "unlocked" }`}</pre>
+{ "ok": true, "message": "unlocked" }`}</Code>
+          </Section>
 
-        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
-          Self-hosted (0% fees)
-        </h2>
-        <p className="ink-mid mb-4 leading-[1.55]">
-          Provide your own Robinhood RPC and verify locally:
-        </p>
-        <pre className="code-block">{`paywall({
+          <Section id="multichain" title="Multichain: one option, not a different command">
+            <p className="leading-7 ink-mid">You were right to ask: every chain has its own identifier, token, verifier path, and RPC. In Verge, you do not run a different command for each chain. You set <code>network</code> in the SDK options. If omitted, Verge uses <code>robinhood-mainnet</code>.</p>
+            <div className="my-5 overflow-x-auto rounded-2xl border border-line bg-card">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="border-b border-line text-[11px] uppercase tracking-[0.14em] ink-dim"><tr><th className="p-4">Network string</th><th className="p-4">Chain</th><th className="p-4">Chain ID</th><th className="p-4">Asset</th><th className="p-4">Notes</th></tr></thead>
+                <tbody>{rails.map(([id, chain, chainId, asset, note]) => <tr key={id} className="border-b border-line/70 last:border-0"><td className="p-4 font-mono text-xs ink">{id}</td><td className="p-4 ink-mid">{chain}</td><td className="p-4 ink-mid">{chainId}</td><td className="p-4 ink-mid">{asset}</td><td className="p-4 ink-mid">{note}</td></tr>)}</tbody>
+              </table>
+            </div>
+            <Code>{`app.use("/api/premium", paywall({
   amount: 0.001,
-  recipient: process.env.WALLET,
-  rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
-});`}</pre>
+  recipient,
+  network: "base-mainnet", // or ethereum-mainnet, arbitrum-mainnet, polygon-mainnet, solana-mainnet, sui-mainnet
+}));`}</Code>
+            <p className="leading-7 ink-mid">Current app reality: the public catalog shows all supported rails; private wallet balances and transaction history in the console are Robinhood Chain-focused today.</p>
+          </Section>
 
-        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
-          Gate your own endpoint with a Verge API key
-        </h2>
-        <p className="ink-mid mb-4 leading-[1.55]">
-          Wallet holders can generate a metered API key from the{" "}
-          <a href="/app" className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]">gateway</a>.
-          Any server — yours included — can verify one of these keys server-side before granting access,
-          without touching USDG or the SDK at all:
-        </p>
-        <pre className="code-block">{`curl -X POST https://vergesnowy.dev/api/keys/verify \\
-  -H "content-type: application/json" \\
+          <Section id="portal" title="Developer portal / console">
+            <p className="leading-7 ink-mid">The console is the user-facing workspace. Visitors can explore payment rails and the marketplace before connecting. Wallet connection is only required for private actions.</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {["Overview: wallet balance, endpoint count, paid calls, settlement volume", "Transactions: confirmed incoming stablecoin transfers", "Marketplace: browse and publish paid endpoints", "Receipts: explorer-linked settlement proofs", "API Keys: create/revoke wallet-scoped credentials", "Networks: rail registry, token reference, explorer links, SDK snippets"].map((text) => <div key={text} className="rounded-xl border border-line bg-card p-4 text-sm ink-mid">{text}</div>)}
+            </div>
+          </Section>
+
+          <Section id="api-keys" title="API keys">
+            <p className="leading-7 ink-mid">API keys are for apps that want Verge-managed access without forcing every request to carry a payment transaction. A wallet signs into the console, creates a key, and your server can introspect it.</p>
+            <Code>{`curl -X POST https://vergesnowy.dev/api/keys/verify \
+  -H "content-type: application/json" \
   -d '{"key": "vg_live_..."}'
 
-{ "ok": true, "wallet": "0xabc...", "remaining": 998, "limit": 1000 }`}</pre>
-        <p className="ink-mid mt-4 leading-[1.55]">
-          Introspection is free and does not consume the caller&apos;s quota — it only reports whether the key
-          is valid, revoked, or exhausted for the day. Revoked or unknown keys respond with HTTP 401.
-        </p>
+{ "ok": true, "wallet": "0xabc...", "remaining": 998, "limit": 1000 }`}</Code>
+            <p className="leading-7 ink-mid">Introspection reports validity, revocation state, and remaining quota. Unknown, revoked, or exhausted keys return HTTP 401.</p>
+          </Section>
 
-        <h2 className="font-display text-[26px] font-semibold tracking-[-0.02em] ink mt-12 mb-4">
-          Reference
-        </h2>
-        <ul className="space-y-2 ink-mid">
-          <li>
-            <a
-              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
-              href="https://www.npmjs.com/package/@vergex402/express"
-              target="_blank"
-              rel="noopener"
-            >
-              npmjs.com/package/@vergex402/express
-            </a>{" "}
-            — Express middleware
-          </li>
-          <li>
-            <a
-              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
-              href="https://www.npmjs.com/package/@vergex402/hono"
-              target="_blank"
-              rel="noopener"
-            >
-              npmjs.com/package/@vergex402/hono
-            </a>{" "}
-            — Hono middleware
-          </li>
-          <li>
-            <a
-              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
-              href="https://github.com/vergex402/verge"
-              target="_blank"
-              rel="noopener"
-            >
-              github.com/vergex402/verge
-            </a>{" "}
-            — full source, SDKs, and app
-          </li>
-          <li>
-            <a
-              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
-              href="https://vergesnowy.dev/api/catalog"
-              target="_blank"
-              rel="noopener"
-            >
-              /api/catalog
-            </a>{" "}
-            — machine-readable gateway discovery for agents
-          </li>
-          <li>
-            <a
-              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
-              href="https://www.x402.org"
-              target="_blank"
-              rel="noopener"
-            >
-              x402.org
-            </a>{" "}
-            — protocol spec
-          </li>
-          <li>
-            <a
-              className="ink underline decoration-[var(--color-line)] hover:decoration-[var(--color-ink)]"
-              href="/api/demo"
-            >
-              /api/demo
-            </a>{" "}
-            — public demo merchant (try the flow live)
-          </li>
-        </ul>
+          <Section id="marketplace" title="Marketplace and catalog">
+            <p className="leading-7 ink-mid">The marketplace is the human UI for paid endpoints. <code>/api/catalog</code> is the machine-readable version for agents and crawlers. Use it to discover endpoints, supported rails, docs URL, gateway URL, and demo routes.</p>
+            <Code>{`curl https://vergesnowy.dev/api/catalog
+curl https://vergesnowy.dev/api/marketplace
+curl https://vergesnowy.dev/api/demo`}</Code>
+          </Section>
 
-        <div className="mt-16 p-6 rounded-[14px] border border-line bg-soft">
-          <div className="font-mono text-[11px] uppercase tracking-[0.18em] ink-dim mb-2">
-            ▸ wallet access
-          </div>
-          <p className="ink leading-[1.55] mb-4">
-            Connect an EVM wallet on Robinhood Chain to open the Developer Portal and manage
-            your USDG payment infrastructure.
-          </p>
-          <a href="/app" className="btn btn-primary !text-[13px]">
-            Open Developer Portal →
-          </a>
-        </div>
-      </article>
-
+          <Section id="reference" title="Reference">
+            <ul className="grid gap-3 md:grid-cols-2">
+              {[
+                ["Express SDK", "https://www.npmjs.com/package/@vergex402/express"],
+                ["Hono SDK", "https://www.npmjs.com/package/@vergex402/hono"],
+                ["Source", "https://github.com/vergex402/verge"],
+                ["x402 spec", "https://www.x402.org"],
+                ["Live catalog", "/api/catalog"],
+                ["Console", "/app"],
+              ].map(([label, href]) => <li key={label}><a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener" className="block rounded-xl border border-line bg-card p-4 ink-mid transition hover:border-line-bright hover:ink">{label} →</a></li>)}
+            </ul>
+          </Section>
+        </article>
+      </div>
       <Footer />
     </main>
   );
