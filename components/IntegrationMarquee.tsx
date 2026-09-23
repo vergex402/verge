@@ -7,7 +7,7 @@ const networks = [
   { name: "Robinhood", logo: "/logos/robinhood.jpg", href: "https://robinhood.com" },
   { name: "Circle", logo: "/logos/circle.jpg", href: "https://www.circle.com" },
   { name: "Uniswap", logo: "/logos/uniswap.png", href: "https://uniswap.org" },
-  { name: "Pons", logo: "/logos/pons.jpg", href: "https://ponsralph.xyz" },
+  { name: "Pons", logo: "/logos/pons.jpg", href: "https://www.ponsfamily.com/launchpad/0xb73B18267d23087e3aF1390edFeB8c4308921D59" },
   { name: "Morpho", logo: "/logos/morpho.jpg", href: "https://morpho.org" },
   { name: "Chainlink", logo: "/logos/chainlink.jpg", href: "https://chain.link" },
   { name: "LayerZero", logo: "/logos/layerzero.jpg", href: "https://layerzero.network" },

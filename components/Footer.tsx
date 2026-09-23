@@ -56,7 +56,7 @@ export default function Footer() {
               links={[
                 { href: "https://x.com/vergesnowyx402", label: "X / Twitter" },
                 { href: "https://www.x402.org", label: "x402.org" },
-                { href: "https://ponsralph.xyz", label: "$VERGE on Pons" },
+                { href: "https://www.ponsfamily.com/launchpad/0xb73B18267d23087e3aF1390edFeB8c4308921D59", label: "$VERGE on Pons" },
                 { href: "/app", label: "Early access" },
               ]}
             />

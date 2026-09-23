@@ -15,7 +15,7 @@ function ContractButton() {
       <span className="ml-3 break-all font-mono text-white/65">{contractLabel}</span>
     </div>
     <a
-        href="https://ponsralph.xyz"
+        href="https://www.ponsfamily.com/launchpad/0xb73B18267d23087e3aF1390edFeB8c4308921D59"
         target="_blank"
         rel="noopener noreferrer"
         className="cursor-pointer flex items-center gap-2 bg-[#171719]/90 backdrop-blur border border-white/15 hover:border-emerald-400/50 hover:bg-[#1B1B1C] text-white px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl font-medium text-sm sm:text-base transition-all hover:scale-[1.03] active:scale-[0.98]"

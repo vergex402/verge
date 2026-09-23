@@ -15,7 +15,7 @@ const ecosystem = [
   { name: "Alchemy", note: "RPC infrastructure", logo: "/logos/alchemy.jpg", href: "https://www.alchemy.com" },
   { name: "Circle", note: "USDC", logo: "/logos/circle.jpg", href: "https://www.circle.com" },
   { name: "Uniswap", note: "Onchain liquidity", logo: "/logos/uniswap.png", href: "https://uniswap.org" },
-  { name: "Pons", note: "Verge community", logo: "/logos/pons.jpg", href: "https://ponsralph.xyz" },
+  { name: "Pons", note: "Verge community", logo: "/logos/pons.jpg", href: "https://www.ponsfamily.com/launchpad/0xb73B18267d23087e3aF1390edFeB8c4308921D59" },
 ];
 
 export default function Ecosystem() {

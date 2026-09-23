@@ -56,7 +56,7 @@ export default function NavBar() {
               Twitter
             </a>
             <a
-              href="https://ponsralph.xyz"
+              href="https://www.ponsfamily.com/launchpad/0xb73B18267d23087e3aF1390edFeB8c4308921D59"
               target="_blank"
               rel="noopener"
               className="text-sm font-medium text-emerald-400 transition-colors hover:text-emerald-300"
