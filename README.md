@@ -16,7 +16,7 @@
 [![Status](https://img.shields.io/badge/status-LIVE-10b981?style=flat-square)]()
 [![$VERGE](https://img.shields.io/badge/$VERGE-Pons-10b981?style=flat-square)](https://www.ponsfamily.com/launchpad/0xb73B18267d23087e3aF1390edFeB8c4308921D59)
 
-[Website](https://vergesnowy.com) · [Twitter](https://x.com/vergesnowyx402) · [$VERGE on Pons](https://www.ponsfamily.com/launchpad/0xb73B18267d23087e3aF1390edFeB8c4308921D59) · [Docs](./app/docs/page.tsx) · [Operations](./docs/OPERATIONS.md) · [Express SDK](./sdk/express) · [Hono SDK](./sdk/hono) · [x402 Spec](https://www.x402.org)
+[Website](https://vergesnowy.com) · [Twitter](https://x.com/vergesnowy402) · [$VERGE on Pons](https://www.ponsfamily.com/launchpad/0xb73B18267d23087e3aF1390edFeB8c4308921D59) · [Docs](./app/docs/page.tsx) · [Operations](./docs/OPERATIONS.md) · [Express SDK](./sdk/express) · [Hono SDK](./sdk/hono) · [x402 Spec](https://www.x402.org)
 
 **CA:** `0xb73b18267d23087e3af1390edfeb8c4308921d59`
 
