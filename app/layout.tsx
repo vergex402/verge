@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Verge — HTTP 402 for AI agents",
     description: "Multichain HTTP 402 payments. USDG on Robinhood Chain; USDC across six additional supported rails.",
-    site: "@vergesnowyx402",
+    site: "@vergesnowy402",
   },
 };
 

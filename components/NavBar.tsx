@@ -48,7 +48,7 @@ export default function NavBar() {
               npm
             </a>
             <a
-              href="https://x.com/vergesnowyx402"
+              href="https://x.com/vergesnowy402"
               target="_blank"
               rel="noopener"
               className="text-sm font-medium text-gray-300 transition-colors hover:text-white"
