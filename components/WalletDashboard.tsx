@@ -16,7 +16,7 @@ import LiveDemo from "@/components/LiveDemo";
 
 const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as const;
 const erc20Abi = [{ type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
-type Tab = "Overview" | "Live Demo" | "Transactions" | "Marketplace" | "Receipts" | "API Keys" | "Networks" | "Wallets" | "Vault" | "Reputation";
+type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "API Keys" | "Networks" | "Wallets" | "Vault" | "Reputation";
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null };
@@ -76,6 +76,8 @@ export default function WalletDashboard() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [agentWallets, setAgentWallets] = useState<AgentWallet[]>([]);
   const [newWallet, setNewWallet] = useState<(AgentWallet & { privateKey: string }) | null>(null);
+  const [pkRevealed, setPkRevealed] = useState(false);
+  const [pkCopied, setPkCopied] = useState(false);
   const [walletLabel, setWalletLabel] = useState("");
   const [walletBusy, setWalletBusy] = useState(false);
   const [vaultEntries, setVaultEntries] = useState<VaultEntry[]>([]);
@@ -85,12 +87,14 @@ export default function WalletDashboard() {
   const [vaultDeletingName, setVaultDeletingName] = useState<string | null>(null);
   const [myReputation, setMyReputation] = useState<ReputationEntry | null>(null);
   const [repLeaderboard, setRepLeaderboard] = useState<ReputationEntry[]>([]);
+  const [feedPreviews, setFeedPreviews] = useState<Record<string, { data?: unknown; error?: string }>>({});
+  const [feedsLoading, setFeedsLoading] = useState(false);
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const usdg = useReadContract({ address: USDG, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (active !== "Marketplace" && active !== "Reputation" && (!authorized || !onRobinhood)) return;
+    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
     const load = async () => {
@@ -156,7 +160,7 @@ export default function WalletDashboard() {
 
   const createWallet = useCallback(async () => {
     if (walletBusy) return;
-    setWalletBusy(true); setAuthError(""); setNewWallet(null);
+    setWalletBusy(true); setAuthError(""); setNewWallet(null); setPkRevealed(false); setPkCopied(false);
     try {
       const response = await fetch("/api/wallets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: walletLabel || undefined }) });
       const data = await response.json();
@@ -166,6 +170,12 @@ export default function WalletDashboard() {
     } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not create wallet"); }
     finally { setWalletBusy(false); }
   }, [walletBusy, walletLabel]);
+
+  const copyPrivateKey = useCallback(async () => {
+    if (!newWallet) return;
+    try { await navigator.clipboard.writeText(newWallet.privateKey); setPkCopied(true); setTimeout(() => setPkCopied(false), 2000); }
+    catch { setAuthError("Could not copy — select and copy the key manually."); }
+  }, [newWallet]);
 
   const vaultStore = useCallback(async (event: React.FormEvent) => {
     event.preventDefault();
@@ -199,6 +209,27 @@ export default function WalletDashboard() {
     return () => { live = false; };
   }, []);
 
+  const FEED_IDS = ["news", "alerts", "whale-alerts", "signals"];
+  useEffect(() => {
+    if (active !== "Data Feeds") return;
+    let cancelled = false;
+    setFeedsLoading(true);
+    Promise.all(
+      FEED_IDS.map(async (id) => {
+        try {
+          const res = await fetch(`/api/preview/${id}`, { cache: "no-store" });
+          const body = await res.json();
+          if (!res.ok) return [id, { error: body.error || `HTTP ${res.status}` }] as const;
+          return [id, { data: body.data }] as const;
+        } catch (error) {
+          return [id, { error: error instanceof Error ? error.message : "Unavailable" }] as const;
+        }
+      })
+    ).then((entries) => { if (!cancelled) setFeedPreviews(Object.fromEntries(entries)); })
+      .finally(() => { if (!cancelled) setFeedsLoading(false); });
+    return () => { cancelled = true; };
+  }, [active]);
+
   async function publishListing(event: React.FormEvent) {
     event.preventDefault(); setAuthError(""); setPublishBusy(true); setJustPublished(null);
     try {
@@ -218,6 +249,7 @@ export default function WalletDashboard() {
   const commands = [
     { id: "nav-overview", label: "Go to Overview", hint: "Workspace", action: () => setActive("Overview") },
     { id: "nav-demo", label: "Try the live demo", hint: "Workspace", action: () => setActive("Live Demo") },
+    { id: "nav-feeds", label: "Browse live data feeds", hint: "Workspace", action: () => setActive("Data Feeds") },
     { id: "nav-tx", label: "Go to Transactions", hint: "Workspace", action: () => setActive("Transactions") },
     { id: "nav-mp", label: "Go to Marketplace", hint: "Workspace", action: () => setActive("Marketplace") },
     { id: "nav-rc", label: "Go to Receipts", hint: "Workspace", action: () => setActive("Receipts") },
@@ -234,7 +266,7 @@ export default function WalletDashboard() {
 
   const usdgDisplay = usdg.data == null ? "—" : `${(Number(usdg.data) / 1e6).toFixed(4)} USDG`;
   const ethDisplay = eth.data ? `${Number(formatUnits(eth.data.value, eth.data.decimals)).toFixed(5)} ETH` : "—";
-  const changeActive = (key: string) => { if (key !== "API Keys") setNewKey(""); setActive(key as Tab); };
+  const changeActive = (key: string) => { if (key !== "API Keys") setNewKey(""); if (key !== "Wallets") { setNewWallet(null); setPkRevealed(false); setPkCopied(false); } setActive(key as Tab); };
 
   const shellHeader = <header className="sticky top-0 z-20 flex min-h-[66px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#0d0f0e]/90 px-4 backdrop-blur-xl md:px-8"><div className="min-w-0"><div className="hidden text-[9px] font-mono tracking-[0.15em] text-white/30 md:block">VERGE <span className="px-1 text-white/15">/</span> WORKSPACE</div><div className="mt-0.5 truncate text-sm font-medium text-white/85 md:hidden">{active}</div><div className="hidden text-[11px] text-white/35 md:block">{active}</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => setPaletteOpen(true)} className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[11px] text-white/40 transition hover:border-white/15 hover:text-white/75 lg:flex"><AppIcon name="search" size={14}/>Search <kbd className="ml-5 rounded border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/30">⌘K</kbd></button><span className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[10px] text-white/50 sm:inline-flex"><span className="size-1.5 rounded-full bg-emerald-300"/>Robinhood · 4663</span><WalletButton className="!rounded-xl !px-3 !py-2 !text-[11px]"/></div></header>;
 
@@ -308,6 +340,27 @@ export default function WalletDashboard() {
       {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading the public directory…</div> : listings.length === 0 ? <TableEmpty title="No verified endpoints listed yet" description="When endpoint owners publish a paid API to the directory, it will appear here." action={<a href="/api/catalog" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-200/70">Inspect the public catalog ↗</a>}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{listings.map((item) => <article key={item.id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-medium text-white/85">{item.name}</h2><a href={item.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-[10px] text-white/35 hover:text-emerald-200">{item.url}</a></div>{item.hostedSlug ? <span className="rounded-md border border-emerald-200/20 bg-emerald-200/[0.08] px-2 py-1 font-mono text-[9px] text-emerald-200">LIVE</span> : <span className="rounded-md border border-emerald-200/10 bg-emerald-200/[0.04] px-2 py-1 font-mono text-[9px] text-emerald-100/70">{item.healthStatus || 402}</span>}</div><div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-3"><span className="font-mono text-[10px] text-white/45">{item.network || "robinhood-mainnet"}</span><span className="text-xs font-medium text-white/75">{Number(item.price).toFixed(6)} {item.asset || "USDG"}</span></div><div className="mt-2 flex gap-3 text-[9px] text-white/30"><span>{item.paidCallsCount || 0} paid calls</span><span>{item.requestsCount || 0} requests</span></div></article>)}</div>}
     </>;
 
+    if (active === "Data Feeds") return <>
+      <PageHeading eyebrow="LIVE · NOT SIMULATED" title="Data feeds." description="Real upstream data behind Verge's hosted marketplace templates — free to preview here, payable via x402 once published as an endpoint." action={<span className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] px-3 py-2 text-[10px] text-white/45"><span className="size-1.5 rounded-full bg-emerald-300"/>Refreshed every 60s</span>}/>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {[
+          { id: "news", label: "Crypto headlines", source: "cointelegraph.com/rss" },
+          { id: "alerts", label: "Trending pools", source: "geckoterminal.com · Robinhood Chain" },
+          { id: "whale-alerts", label: "Whale liquidity", source: "geckoterminal.com · Robinhood Chain" },
+          { id: "signals", label: "Momentum signals", source: "derived from live pool data" },
+        ].map(({ id, label, source }) => {
+          const preview = feedPreviews[id];
+          return <section key={id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5">
+            <div className="mb-3 flex items-center justify-between"><div><div className="text-xs font-medium text-white/85">{label}</div><div className="mt-1 text-[10px] text-white/35">{source}</div></div><span className="rounded-full border border-white/[0.08] px-2 py-1 font-mono text-[8px] tracking-wider text-emerald-200/70">LIVE</span></div>
+            {feedsLoading && !preview ? <div className="rounded-xl border border-white/[0.06] bg-black/10 p-6 text-center text-[11px] text-white/35">Fetching live data…</div>
+              : preview?.error ? <div className="rounded-xl border border-rose-200/10 bg-rose-200/[0.03] p-4 text-[11px] text-rose-200">{preview.error}</div>
+              : <pre className="max-h-64 overflow-auto rounded-xl border border-white/[0.06] bg-black/20 p-3 font-mono text-[10px] leading-5 text-white/70">{JSON.stringify(preview?.data, null, 2)}</pre>}
+          </section>;
+        })}
+      </div>
+      <p className="mt-4 text-[10px] text-white/30">These previews call the same live upstream as a paid `/x/&lt;slug&gt;` endpoint would, sharing a 60-second cache. Publish one from the Marketplace tab to make it payable by agents.</p>
+    </>;
+
     if (active === "Transactions" || active === "Receipts") return <>
       <PageHeading eyebrow={active === "Receipts" ? "SETTLEMENT PROOFS" : "ONCHAIN ACTIVITY"} title={active === "Receipts" ? "Receipts." : "Transactions."} description={active === "Receipts" ? "Confirmed incoming USDG transfers, linked to their onchain explorer records." : "Recent USDG Transfer events received by your connected wallet on Robinhood Chain."} action={<span className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] px-3 py-2 text-[10px] text-white/45"><span className="size-1.5 rounded-full bg-emerald-300"/>Robinhood · 4663</span>}/>
       {!authorized ? <TableEmpty title="Sign in to view wallet activity" description="A wallet signature is required to query transaction and receipt records for your address." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : activityError ? <div className="rounded-2xl border border-rose-200/10 bg-rose-200/[0.03] p-5 text-xs text-rose-200">{activityError}</div> : activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Scanning recent Transfer events…</div> : activity.length === 0 ? <TableEmpty title={active === "Receipts" ? "No receipts yet" : "No incoming transactions yet"} description="New confirmed USDG transfers to this wallet will be shown here with their block and explorer link."/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1.4fr_.8fr_.7fr_.6fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Transaction</span><span>Amount</span><span>Block</span><span>Status</span></div><div className="divide-y divide-white/[0.05]">{activity.map((tx) => <a key={tx.hash+tx.block} href={tx.explorer} target="_blank" rel="noreferrer" className="grid gap-2 px-4 py-3 transition hover:bg-white/[0.02] md:grid-cols-[1.4fr_.8fr_.7fr_.6fr] md:items-center md:gap-3 md:px-5"><span className="truncate font-mono text-[10px] text-white/70">{tx.hash.slice(0,14)}…{tx.hash.slice(-8)} <AppIcon name="arrow" size={11} className="ml-1 inline text-white/30"/></span><span className="text-xs text-emerald-200">{tx.amount.toFixed(6)} USDG</span><span className="text-[10px] text-white/40">Block {tx.block}</span><span className="text-[10px] text-emerald-200/70">Confirmed</span></a>)}</div></div>}
@@ -318,9 +371,25 @@ export default function WalletDashboard() {
       {!authorized ? <TableEmpty title="Sign in to manage agent wallets" description="Agent wallets are tied to your wallet session and can only be created or viewed after wallet authorization." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : <>
         <div className="mb-4 flex flex-col gap-2 sm:flex-row"><input value={walletLabel} onChange={(e) => setWalletLabel(e.target.value)} placeholder="Label (optional, e.g. research-bot)" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs sm:max-w-xs"/></div>
         {newWallet && <div className="mb-4 rounded-2xl border border-amber-200/20 bg-amber-100/[0.04] p-4">
-          <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-medium text-amber-100"><AppIcon name="check" size={15}/>Wallet created · copy the private key now</span><button type="button" onClick={() => setNewWallet(null)} className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-white/50 transition hover:border-white/20 hover:text-white">Hide</button></div>
-          <p className="mt-1 text-[10px] text-white/40">This is the only time the private key is shown. It is vaulted under <code className="text-white/60">{newWallet.vaultRef}</code>.</p>
-          <div className="mt-3 space-y-2"><div><div className="text-[9px] uppercase tracking-wide text-white/30">Address</div><code className="mt-1 block break-all rounded-xl border border-white/[0.07] bg-black/20 p-3 font-mono text-[11px] text-white/80">{newWallet.address}</code></div><div><div className="text-[9px] uppercase tracking-wide text-white/30">Private key</div><code className="mt-1 block break-all rounded-xl border border-rose-200/20 bg-black/20 p-3 font-mono text-[11px] text-rose-100/90">{newWallet.privateKey}</code></div></div>
+          <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-medium text-amber-100"><AppIcon name="check" size={15}/>Wallet created</span><button type="button" onClick={() => { setNewWallet(null); setPkRevealed(false); }} className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-white/50 transition hover:border-white/20 hover:text-white">Dismiss</button></div>
+          <p className="mt-1 text-[10px] text-white/40">This private key is shown only once and cannot be recovered afterward — Verge stores only an encrypted copy under <code className="text-white/60">{newWallet.vaultRef}</code> for server-side use, never as retrievable plaintext.</p>
+          <div className="mt-3 space-y-2">
+            <div><div className="text-[9px] uppercase tracking-wide text-white/30">Address</div><code className="mt-1 block break-all rounded-xl border border-white/[0.07] bg-black/20 p-3 font-mono text-[11px] text-white/80">{newWallet.address}</code></div>
+            <div>
+              <div className="flex items-center justify-between"><div className="text-[9px] uppercase tracking-wide text-white/30">Private key</div>{pkRevealed && <button type="button" onClick={() => setPkRevealed(false)} className="text-[9px] text-white/40 hover:text-white/70">Hide</button>}</div>
+              {pkRevealed ? (
+                <div className="mt-1 flex items-stretch gap-2">
+                  <code className="block flex-1 break-all rounded-xl border border-rose-200/20 bg-black/20 p-3 font-mono text-[11px] text-rose-100/90">{newWallet.privateKey}</code>
+                  <button type="button" onClick={() => void copyPrivateKey()} className="shrink-0 rounded-xl border border-white/10 px-3 text-[10px] text-white/60 transition hover:border-white/25 hover:text-white">{pkCopied ? "Copied ✓" : "Copy"}</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setPkRevealed(true)} className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200/25 bg-black/15 p-3 text-[11px] text-rose-100/70 transition hover:border-rose-200/45 hover:text-rose-100">
+                  <AppIcon name="key" size={13}/> Click to reveal private key
+                </button>
+              )}
+              <p className="mt-1.5 text-[9px] text-white/30">Sensitive — hidden by default so it never appears in screenshots or screen recordings by accident.</p>
+            </div>
+          </div>
         </div>}
         {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
         {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading agent wallets…</div> : agentWallets.length === 0 ? <TableEmpty title="No agent wallets yet" description="Generate a wallet to give an agent its own on-chain identity for paying x402 endpoints." action={<button onClick={() => void createWallet()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first agent wallet</button>}/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_1.3fr_.9fr_.6fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Label</span><span>Address</span><span>Vault ref</span><span>Created</span></div><div className="divide-y divide-white/[0.05]">{agentWallets.map((w) => <div key={w.address} className="grid gap-2 px-4 py-4 md:grid-cols-[1fr_1.3fr_.9fr_.6fr] md:items-center md:px-5"><span className="text-[11px] text-white/75">{w.label}</span><span className="truncate font-mono text-[10px] text-white/65">{w.address}</span><span className="truncate font-mono text-[9px] text-white/35">{w.vaultRef}</span><span className="text-[10px] text-white/40">{new Date(w.createdAt).toLocaleDateString()}</span></div>)}</div></div>}
