@@ -1,11 +1,14 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { consumeChallenge, createSession } from "@/app/lib/auth";
-import { audit } from "@/app/lib/db";
+import { audit, allowRateLimit } from "@/app/lib/db";
+import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  if (!(await allowRateLimit(`auth-session:${requestIp(req)}`, 20))) return rateLimitResponse();
+
   try {
     const { address, message, signature } = await req.json();
     if (!address || !message || !signature || !(await consumeChallenge(address, message, signature))) {

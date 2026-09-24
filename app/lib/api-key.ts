@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { queryOne, query } from "@/app/lib/db";
+import { queryOne } from "@/app/lib/db";
 
 const DAILY_RESET = () => new Date().toISOString().slice(0, 10);
 
@@ -30,19 +30,35 @@ async function lookupKey(rawKey: string): Promise<KeyRow | undefined> {
 /** Verify an X-API-Key header, enforce a rolling daily quota, and record usage. */
 export async function checkApiKey(rawKey: string | null | undefined): Promise<KeyCheckResult> {
   if (!rawKey) return { ok: false, error: "MISSING_KEY" };
-  const row = await lookupKey(rawKey);
-  if (!row) return { ok: false, error: "INVALID_KEY" };
-  if (row.revokedAt) return { ok: false, error: "KEY_REVOKED" };
-
-  const today = DAILY_RESET();
-  const usageCount = row.usageDate === today ? row.usageCount : 0;
-  if (usageCount >= row.quotaLimit) return { ok: false, wallet: row.wallet, remaining: 0, limit: row.quotaLimit, error: "QUOTA_EXCEEDED" };
-
   const hash = createHash("sha256").update(rawKey).digest("hex");
-  await query("UPDATE api_keys SET usage_count = $1, usage_date = $2, last_used_at = $3 WHERE key_hash = $4",
-    [usageCount + 1, today, new Date().toISOString(), hash]);
+  const today = DAILY_RESET();
 
-  return { ok: true, wallet: row.wallet, remaining: row.quotaLimit - usageCount - 1, limit: row.quotaLimit };
+  // Single atomic UPDATE: reset usage_count to 0 on a new day, increment it
+  // otherwise, but only when the (possibly-reset) count is still under quota.
+  // This closes a check-then-write race where two concurrent requests could
+  // both read a pre-increment count under the limit and both be allowed
+  // through, burning more than quota_limit calls per day.
+  const row = await queryOne<KeyRow & { newUsageCount: number }>(
+    `UPDATE api_keys
+     SET usage_count = CASE WHEN usage_date = $2 THEN usage_count + 1 ELSE 1 END,
+         usage_date = $2,
+         last_used_at = $3
+     WHERE key_hash = $1
+       AND revoked_at IS NULL
+       AND (CASE WHEN usage_date = $2 THEN usage_count ELSE 0 END) < quota_limit
+     RETURNING wallet, revoked_at as "revokedAt", quota_limit as "quotaLimit", usage_count as "newUsageCount", usage_date as "usageDate"`,
+    [hash, today, new Date().toISOString()]
+  );
+
+  if (row) {
+    return { ok: true, wallet: row.wallet, remaining: row.quotaLimit - row.newUsageCount, limit: row.quotaLimit };
+  }
+
+  // The UPDATE matched nothing: either the key doesn't exist, is revoked, or is over quota.
+  const existing = await lookupKey(rawKey);
+  if (!existing) return { ok: false, error: "INVALID_KEY" };
+  if (existing.revokedAt) return { ok: false, error: "KEY_REVOKED" };
+  return { ok: false, wallet: existing.wallet, remaining: 0, limit: existing.quotaLimit, error: "QUOTA_EXCEEDED" };
 }
 
 /**

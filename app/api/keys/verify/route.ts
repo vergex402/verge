@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { introspectApiKey } from "@/app/lib/api-key";
+import { allowRateLimit } from "@/app/lib/db";
+import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,9 @@ export const runtime = "nodejs";
  *     -d '{"key":"vg_live_..."}'
  */
 export async function POST(req: NextRequest) {
+  // Guards against brute-forcing/enumerating API keys via this endpoint.
+  if (!(await allowRateLimit(`keys-verify:${requestIp(req)}`, 30))) return rateLimitResponse();
+
   let key: string | undefined;
   try {
     const body = await req.json();
