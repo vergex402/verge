@@ -3,7 +3,7 @@
 // nonces and settlement replay protection survive server restarts and
 // work correctly across multiple app instances.
 
-import type { Challenge, ChallengeStore, PaymentNetwork, ReplayStore } from "@vergex402/core";
+import type { AtomicReplayStore, CancellableReplayStore, Challenge, ChallengeStore, PaymentNetwork, ReplayStore } from "@vergex402/core";
 import { query, queryOne } from "@/app/lib/db";
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
@@ -15,6 +15,10 @@ export const pgChallengeStore: ChallengeStore = {
        ON CONFLICT (nonce) DO UPDATE SET network = EXCLUDED.network, recipient = EXCLUDED.recipient, amount = EXCLUDED.amount, expires_at = EXCLUDED.expires_at`,
       [challenge.nonce, challenge.network, challenge.recipient.toLowerCase(), challenge.amount, Date.now() + CHALLENGE_TTL_MS]
     );
+    // Opportunistic hygiene: purge expired nonces ~1% of writes.
+    if (Math.random() < 0.01) {
+      await query(`DELETE FROM x402_nonces WHERE expires_at < $1`, [Date.now()]);
+    }
   },
   async consume(nonce, expected) {
     const row = await queryOne<{ network: string; recipient: string; amount: number; expiresAt: string }>(
@@ -30,12 +34,23 @@ export const pgChallengeStore: ChallengeStore = {
   },
 };
 
-export const pgReplayStore: ReplayStore = {
+export const pgReplayStore: AtomicReplayStore & CancellableReplayStore = {
   async has(txHash: string) {
     const row = await queryOne(`SELECT 1 FROM x402_settlements WHERE replay_key = $1`, [txHash]);
     return Boolean(row);
   },
   async add(txHash: string) {
     await query(`INSERT INTO x402_settlements(replay_key) VALUES ($1) ON CONFLICT DO NOTHING`, [txHash]);
+  },
+  /** Atomic test-and-set — wins exactly once per key, safe under concurrent settles. */
+  async claim(txHash: string) {
+    const row = await queryOne<{ claimed: number }>(
+      `INSERT INTO x402_settlements(replay_key) VALUES ($1) ON CONFLICT (replay_key) DO NOTHING RETURNING 1 AS claimed`,
+      [txHash]
+    );
+    return Boolean(row);
+  },
+  async remove(txHash: string) {
+    await query(`DELETE FROM x402_settlements WHERE replay_key = $1`, [txHash]);
   },
 };

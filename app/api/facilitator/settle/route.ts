@@ -6,6 +6,8 @@
 import { NextRequest } from "next/server";
 import { settleX402Payment, type X402PaymentPayload, type X402PaymentRequirements } from "@vergex402/core";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
+import { allowRateLimit } from "@/app/lib/db";
+import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -16,6 +18,9 @@ interface FacilitatorRequest {
 }
 
 export async function POST(req: NextRequest) {
+  // Settle does on-chain RPC reads + DB writes — cap abuse per IP.
+  if (!(await allowRateLimit(`facilitator-settle:${requestIp(req)}`, 60))) return rateLimitResponse();
+
   let body: FacilitatorRequest;
   try {
     body = (await req.json()) as FacilitatorRequest;

@@ -132,6 +132,11 @@ export interface ReplayStore {
   add(txHash: string): Promise<void> | void;
 }
 
+/** Optional: release a claim (used when a later check fails after claiming). */
+export interface CancellableReplayStore extends ReplayStore {
+  remove(txHash: string): Promise<void> | void;
+}
+
 export interface ChallengeStore {
   add(challenge: Challenge): Promise<void> | void;
   consume(nonce: string, expected: Pick<Challenge, "network" | "recipient" | "amount">): Promise<Challenge | null> | Challenge | null;
@@ -459,6 +464,27 @@ export interface X402SettleResponse {
   amount?: string;
 }
 
+/**
+ * Atomic replay-guard: the ReplayStore equivalent of test-and-set. Returns
+ * true when this call WON the right to settle (key was unused), false when
+ * another concurrent request already settled the same key. Implementations
+ * MUST use a single atomic operation (e.g. INSERT ... ON CONFLICT ... RETURNING).
+ */
+export interface AtomicReplayStore extends ReplayStore {
+  /** Returns true if this call claimed the key; false if it was already taken. */
+  claim(txHash: string): Promise<boolean> | boolean;
+}
+
+function isAtomic(store: ReplayStore | undefined): store is AtomicReplayStore {
+  return Boolean(store && typeof (store as AtomicReplayStore).claim === "function");
+}
+
+/** Release a replay claim when a later step fails; no-op for stores without remove(). */
+async function releaseClaim(store: ReplayStore | undefined, key: string): Promise<void> {
+  const removable = store as Partial<CancellableReplayStore> | undefined;
+  if (removable && typeof removable.remove === "function") await removable.remove(key);
+}
+
 function atomicAmount(amountHuman: number, decimals: number): string {
   const raw = BigInt(Math.round(amountHuman * 10 ** decimals));
   return raw.toString();
@@ -695,13 +721,32 @@ export async function settleX402Payment(
   const replayKey = `${network}:${tx.toLowerCase()}`;
 
   try {
-    const alreadyUsed = opts.replayStore ? await opts.replayStore.has(replayKey) : memoryReplayStore.has(replayKey);
-    if (alreadyUsed) return { success: false, errorReason: "transaction_already_settled", payer: check.payer, transaction: tx, network: paymentRequirements.network };
-    if (nonce) {
-      const consumed = await challengeStore.consume(nonce, { network, recipient: paymentRequirements.payTo, amount: humanAmount(paymentRequirements.amount, rail.decimals) });
-      if (!consumed) return { success: false, errorReason: "nonce_unknown_or_expired", payer: check.payer, transaction: "", network: paymentRequirements.network };
+    // Replay guard FIRST. With an AtomicReplayStore this is a single
+    // test-and-set: concurrent settles of the same tx cannot both pass.
+    if (isAtomic(opts.replayStore)) {
+      const claimed = await opts.replayStore.claim(replayKey);
+      if (!claimed) return { success: false, errorReason: "transaction_already_settled", payer: check.payer, transaction: tx, network: paymentRequirements.network };
+      const consumed = nonce
+        ? await challengeStore.consume(nonce, { network, recipient: paymentRequirements.payTo, amount: humanAmount(paymentRequirements.amount, rail.decimals) })
+        : null;
+      if (nonce && !consumed) {
+        // Nonce lost the race — release the replay claim so a legitimate
+        // settle with the proper nonce can still land.
+        await releaseClaim(opts.replayStore, replayKey);
+        return { success: false, errorReason: "nonce_unknown_or_expired", payer: check.payer, transaction: "", network: paymentRequirements.network };
+      }
+    } else {
+      // Fallback path (plain ReplayStore): has→add window exists, but the
+      // replay key is PRIMARY KEY in durable stores, so a duplicate add is
+      // still rejected by the store itself.
+      const alreadyUsed = opts.replayStore ? await opts.replayStore.has(replayKey) : memoryReplayStore.has(replayKey);
+      if (alreadyUsed) return { success: false, errorReason: "transaction_already_settled", payer: check.payer, transaction: tx, network: paymentRequirements.network };
+      if (nonce) {
+        const consumed = await challengeStore.consume(nonce, { network, recipient: paymentRequirements.payTo, amount: humanAmount(paymentRequirements.amount, rail.decimals) });
+        if (!consumed) return { success: false, errorReason: "nonce_unknown_or_expired", payer: check.payer, transaction: "", network: paymentRequirements.network };
+      }
+      if (opts.replayStore) await opts.replayStore.add(replayKey); else memoryReplayStore.add(replayKey);
     }
-    if (opts.replayStore) await opts.replayStore.add(replayKey); else memoryReplayStore.add(replayKey);
     return {
       success: true,
       payer: check.payer,
@@ -732,7 +777,10 @@ const memoryChallengeStore: ChallengeStore = {
 
 /** Public handles to the default process-local stores — for demos and simple integrations. */
 export const defaultChallengeStore: ChallengeStore = memoryChallengeStore;
-export const defaultReplayStore: ReplayStore = {
+export const defaultReplayStore: AtomicReplayStore & CancellableReplayStore = {
   has: (txHash: string) => memoryReplayStore.has(txHash),
   add: (txHash: string) => { memoryReplayStore.add(txHash); },
+  /** Atomic test-and-set for concurrent settles. */
+  claim: (txHash: string) => !memoryReplayStore.has(txHash) && (memoryReplayStore.add(txHash), true),
+  remove: (txHash: string) => { memoryReplayStore.delete(txHash); },
 };

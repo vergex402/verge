@@ -8,6 +8,8 @@
 import { NextRequest } from "next/server";
 import { buildChallenge, challengeHeadersV2, decodePaymentSignature, defaultChallengeStore, defaultReplayStore, evaluatePayment, extractProof } from "@vergex402/core";
 import { checkApiKey } from "@/app/lib/api-key";
+import { allowRateLimit } from "@/app/lib/db";
+import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -22,6 +24,9 @@ export function publicOrigin(req: NextRequest): string {
 }
 
 export async function GET(req: NextRequest) {
+  // Cheap challenges are free to mint; cap challenge-minting spam per IP.
+  if (!(await allowRateLimit(`demo:${requestIp(req)}`, 30))) return rateLimitResponse();
+
   const apiKey = req.headers.get("x-api-key");
 
   // An API key bypasses per-call USDG payment but is quota-metered per wallet.
