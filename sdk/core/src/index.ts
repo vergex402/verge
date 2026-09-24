@@ -11,6 +11,7 @@ const robinhoodChain = defineChain({
   rpcUrls: { default: { http: ["https://rpc.mainnet.chain.robinhood.com"] } },
   blockExplorers: { default: { name: "Robinhood Chain Explorer", url: "https://robinhoodchain.blockscout.com" } },
 });
+const robinhoodFallbacks = ["https://robinhood.drpc.org", "https://robinhood-rpc.publicnode.com", "https://robinhood.rpc.blxrbdn.com"];
 const ethereumChain = defineChain({ id: 1, name: "Ethereum", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://ethereum-rpc.publicnode.com"] } }, blockExplorers: { default: { name: "Etherscan", url: "https://etherscan.io" } } });
 const baseChain = defineChain({ id: 8453, name: "Base", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://mainnet.base.org"] } }, blockExplorers: { default: { name: "Basescan", url: "https://basescan.org" } } });
 const arbitrumChain = defineChain({ id: 42161, name: "Arbitrum One", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://arb1.arbitrum.io/rpc"] } }, blockExplorers: { default: { name: "Arbiscan", url: "https://arbiscan.io" } } });
@@ -92,8 +93,14 @@ function alchemyUrl(network: PaymentNetwork): string | null {
 /** Ordered RPC candidates for a rail: explicit override, then Alchemy (if configured), then the public default. */
 export function rpcCandidates(network: PaymentNetwork, explicitRpcUrl?: string): string[] {
   const rail = getRail(network);
-  const candidates = [explicitRpcUrl, alchemyUrl(network), rail.defaultRpcUrl].filter((u): u is string => Boolean(u));
+  const fallbacks = network === "robinhood-mainnet" ? robinhoodFallbacks : [];
+  const candidates = [explicitRpcUrl, alchemyUrl(network), rail.defaultRpcUrl, ...fallbacks].filter((u): u is string => Boolean(u));
   return Array.from(new Set(candidates));
+}
+
+/** viem transport options: providers on our rails (notably Robinhood Chain) reject requests without a user-agent. */
+function transportFor(url: string) {
+  return http(url, { fetchOptions: { headers: { "user-agent": "Verge-Core/1.0" } } } as Parameters<typeof http>[1]);
 }
 
 export function getRail(network: PaymentNetwork | string = "robinhood-mainnet"): PaymentRail {
@@ -114,6 +121,10 @@ export interface PaywallOptions {
   /** Stores issued nonces so a paid retry must correspond to a real 402 challenge. Defaults to in-memory storage. */
   challengeStore?: ChallengeStore;
   realm?: string;
+  /** x402 v2 ResourceInfo.serviceName advertised in PAYMENT-REQUIRED. */
+  resourceName?: string;
+  /** x402 v2 ResourceInfo.description advertised in PAYMENT-REQUIRED. */
+  resourceDescription?: string;
 }
 
 export interface ReplayStore {
@@ -188,10 +199,16 @@ export type PaymentOutcome =
 
 interface EvmVerifyArgs { client: ReturnType<typeof createPublicClient>; tx: Hash; recipient: string; amount: number; rail: EvmRail; }
 
-export async function verifyStablecoinTransfer({ client, tx, recipient, amount, rail }: EvmVerifyArgs): Promise<boolean> {
-  if (!tx || !/^0x[a-fA-F0-9]{64}$/.test(tx)) return false;
-  const receipt = await client.getTransactionReceipt({ hash: tx });
-  if (!receipt || receipt.status !== "success") return false;
+export async function verifyStablecoinTransferDetailed({ client, tx, recipient, amount, rail }: EvmVerifyArgs): Promise<{ ok: boolean; payer: string | null }> {
+  if (!tx || !/^0x[a-fA-F0-9]{64}$/.test(tx)) return { ok: false, payer: null };
+  let receipt: Awaited<ReturnType<typeof client.getTransactionReceipt>> | null;
+  try {
+    receipt = await client.getTransactionReceipt({ hash: tx });
+  } catch {
+    // viem throws TransactionReceiptNotFoundError for unknown txs — that is "not paid", not an RPC outage.
+    receipt = null;
+  }
+  if (!receipt || receipt.status !== "success") return { ok: false, payer: null };
   const amountRaw = parseUnits(String(amount), rail.decimals);
   const recipientLower = recipient.toLowerCase();
   for (const log of receipt.logs) {
@@ -200,9 +217,17 @@ export async function verifyStablecoinTransfer({ client, tx, recipient, amount, 
     if (!toTopic) continue;
     const toAddr = (`0x${toTopic.slice(26)}`).toLowerCase();
     if (toAddr !== recipientLower) continue;
-    if (BigInt(log.data) >= amountRaw) return true;
+    if (BigInt(log.data) >= amountRaw) {
+      const fromTopic = log.topics[1];
+      const payer = fromTopic ? `0x${fromTopic.slice(26)}`.toLowerCase() : null;
+      return { ok: true, payer };
+    }
   }
-  return false;
+  return { ok: false, payer: null };
+}
+
+export async function verifyStablecoinTransfer(args: EvmVerifyArgs): Promise<boolean> {
+  return (await verifyStablecoinTransferDetailed(args)).ok;
 }
 
 /** Backward-compatible Robinhood/USDG verifier alias. */
@@ -263,7 +288,7 @@ export async function verifySuiUsdcTransfer(rpcUrl: string, digest: string, reci
   return false;
 }
 
-export async function evaluatePayment(opts: PaywallOptions, tx: string | undefined | null, nonce: string | undefined | null): Promise<PaymentOutcome> {
+export async function evaluatePayment(opts: PaywallOptions, tx: string | undefined | null, nonce: string | undefined | null, resource?: { url?: string; pathname?: string }): Promise<PaymentOutcome> {
   const network = opts.network || "robinhood-mainnet";
   const rail = getRail(network);
   const realm = opts.realm || "verge";
@@ -271,7 +296,13 @@ export async function evaluatePayment(opts: PaywallOptions, tx: string | undefin
   if (!tx) {
     const challenge = buildChallenge(opts, realm, network);
     await challengeStore.add(challenge);
-    return { kind: "challenge", challenge, headers: challengeHeaders(challenge, realm) };
+    const resourceInfo: ResourceInfo = {
+      url: resource?.url || `x402:${resource?.pathname || "verge-resource"}`,
+      mimeType: "application/json",
+      ...(opts.resourceName ? { serviceName: opts.resourceName.slice(0, 32) } : {}),
+      ...(opts.resourceDescription ? { description: opts.resourceDescription } : {}),
+    };
+    return { kind: "challenge", challenge, headers: challengeHeadersV2(challenge, realm, resourceInfo) };
   }
   try {
     if (!nonce) return { kind: "nonce_required" };
@@ -286,7 +317,7 @@ export async function evaluatePayment(opts: PaywallOptions, tx: string | undefin
       let lastError: unknown;
       for (const url of rpcCandidates(network, opts.rpcUrl)) {
         try {
-          const client = createPublicClient({ chain: rail.chain, transport: http(url) });
+          const client = createPublicClient({ chain: rail.chain, transport: transportFor(url) });
           ok = await verifyStablecoinTransfer({ client, tx: tx as Hash, recipient: opts.recipient, amount: opts.amount, rail });
           lastError = undefined;
           break;
@@ -327,6 +358,362 @@ export function parseX402Authenticate(header: string): Record<string, string> {
   return out;
 }
 
+// ============================================================================
+// x402 V2 wire compatibility — PAYMENT-REQUIRED / PAYMENT-SIGNATURE headers,
+// CAIP-2 network identifiers, and the facilitator /verify + /settle contract.
+//
+// Verge settles via client-prepaid direct stablecoin transfers, which maps to
+// the x402 v2 "upfront" payment flow (spec §6.1/§7.2): the client pays first,
+// then /settle binds the on-chain proof (consuming the challenge nonce and
+// marking the tx used) after read-only verification. Standard x402 v2 clients
+// interop through the exact-scheme envelope below; Verge-native clients may
+// keep using the X-Pay-* headers — both are accepted everywhere.
+// ============================================================================
+
+export const X402_VERSION = 2 as const;
+
+/** CAIP-2 identifier for every supported rail. */
+export const CAIP2_BY_NETWORK: Record<PaymentNetwork, string> = {
+  "robinhood-mainnet": "eip155:4663",
+  "ethereum-mainnet": "eip155:1",
+  "base-mainnet": "eip155:8453",
+  "arbitrum-mainnet": "eip155:42161",
+  "polygon-mainnet": "eip155:137",
+  "solana-mainnet": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  "sui-mainnet": "sui:mainnet",
+};
+
+export function caip2Of(network: PaymentNetwork): string {
+  return CAIP2_BY_NETWORK[network];
+}
+
+/** Reverse CAIP-2 → Verge network label. Accepts legacy labels too. */
+export function networkFromCaip2(caip2: string): PaymentNetwork | null {
+  const normalized = String(caip2 || "").trim().toLowerCase();
+  for (const [label, id] of Object.entries(CAIP2_BY_NETWORK)) {
+    if (id.toLowerCase() === normalized) return label as PaymentNetwork;
+  }
+  if (normalized in PAYMENT_RAILS) return normalized as PaymentNetwork;
+  return null;
+}
+
+export interface ResourceInfo {
+  url: string;
+  description?: string;
+  mimeType?: string;
+  serviceName?: string;
+  tags?: string[];
+}
+
+/** x402 v2 PaymentRequirements (one entry of PaymentRequired.accepts). */
+export interface X402PaymentRequirements {
+  scheme: "exact";
+  network: string; // CAIP-2
+  amount: string; // atomic token units
+  asset: string; // token contract / mint / coin type
+  payTo: string;
+  maxTimeoutSeconds: number;
+  extra?: Record<string, unknown>;
+}
+
+/** x402 v2 PaymentRequired object. */
+export interface X402PaymentRequired {
+  x402Version: 2;
+  error?: string;
+  resource: ResourceInfo;
+  accepts: X402PaymentRequirements[];
+  extensions?: Record<string, unknown>;
+}
+
+/** x402 v2 PaymentPayload — what the client sends back in PAYMENT-SIGNATURE. */
+export interface X402PaymentPayload {
+  x402Version?: number;
+  resource?: ResourceInfo;
+  accepted?: X402PaymentRequirements;
+  payload: {
+    /** Settlement transaction hash (Verge direct-transfer scheme). */
+    tx?: string;
+    /** Challenge nonce from the original 402 (extensions["x-verge"].info.nonce). */
+    nonce?: string;
+    /** Optional payer hint (address / owner / sender). */
+    from?: string;
+    [key: string]: unknown;
+  };
+  extensions?: Record<string, unknown>;
+}
+
+/** x402 v2 VerifyResponse (facilitator §7.1). */
+export interface X402VerifyResponse {
+  isValid: boolean;
+  invalidReason?: string;
+  payer?: string;
+}
+
+/** x402 v2 SettleResponse (facilitator §7.2). */
+export interface X402SettleResponse {
+  success: boolean;
+  errorReason?: string;
+  payer?: string;
+  transaction: string;
+  network: string;
+  amount?: string;
+}
+
+function atomicAmount(amountHuman: number, decimals: number): string {
+  const raw = BigInt(Math.round(amountHuman * 10 ** decimals));
+  return raw.toString();
+}
+
+function humanAmount(amountAtomic: string | number, decimals: number): number {
+  const raw = BigInt(String(Math.round(Number(amountAtomic))));
+  return Number(raw) / 10 ** decimals;
+}
+
+/** Builds the exact-scheme requirements entry for one rail. */
+export function buildPaymentRequirements(opts: {
+  network: PaymentNetwork;
+  amount: number; // human units
+  payTo: string;
+  resourceUrl: string;
+  maxTimeoutSeconds?: number;
+  challengeNonce?: string;
+  memo?: string;
+}): X402PaymentRequirements {
+  const rail = getRail(opts.network);
+  const extra: Record<string, unknown> = {
+    assetTransferMethod: "direct-transfer",
+    paymentFlow: "upfront",
+    tokenSymbol: rail.asset,
+    tokenDecimals: rail.decimals,
+    vergeNetwork: opts.network, // legacy Verge label for mixed clients
+  };
+  if (opts.challengeNonce) extra.nonce = opts.challengeNonce;
+  if (opts.memo) extra.memo = opts.memo;
+  return {
+    scheme: "exact",
+    network: caip2Of(opts.network),
+    amount: atomicAmount(opts.amount, rail.decimals),
+    asset: tokenRefOf(rail),
+    payTo: opts.payTo,
+    maxTimeoutSeconds: opts.maxTimeoutSeconds ?? 600,
+    extra,
+  };
+}
+
+/** Full PaymentRequired object for a challenge, with the x-verge extension carrying the nonce. */
+export function buildPaymentRequired(opts: {
+  network: PaymentNetwork;
+  amount: number; // human units
+  payTo: string;
+  resource: ResourceInfo;
+  challengeNonce?: string;
+  memo?: string;
+  error?: string;
+}): X402PaymentRequired {
+  const accepts = [buildPaymentRequirements({ ...opts, resourceUrl: opts.resource.url })];
+  const extensions = opts.challengeNonce
+    ? {
+        "x-verge": {
+          info: { nonce: opts.challengeNonce, memo: opts.memo ?? "", rails: Object.keys(PAYMENT_RAILS) },
+          schema: {
+            type: "object",
+            properties: { nonce: { type: "string" }, memo: { type: "string" }, rails: { type: "array", items: { type: "string" } } },
+            required: ["nonce"],
+          },
+        },
+      }
+    : undefined;
+  return { x402Version: X402_VERSION, error: opts.error, resource: opts.resource, accepts, extensions };
+}
+
+/** Base64-encodes a PaymentRequired object for the PAYMENT-REQUIRED header. */
+export function encodePaymentRequired(pr: X402PaymentRequired): string {
+  return Buffer.from(JSON.stringify(pr), "utf8").toString("base64");
+}
+
+/** Decodes the PAYMENT-REQUIRED header value back into the object. */
+export function decodePaymentRequired(value: string): X402PaymentRequired | null {
+  try {
+    return JSON.parse(Buffer.from(value, "base64").toString("utf8")) as X402PaymentRequired;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Challenge headers in BOTH dialects: the legacy X-Pay-* set plus the x402 v2
+ * PAYMENT-REQUIRED header. One response serves legacy Verge clients and
+ * standard x402 v2 agents at the same time.
+ */
+export function challengeHeadersV2(challenge: Challenge, realm: string, resource: ResourceInfo): Record<string, string> {
+  const pr = buildPaymentRequired({
+    network: challenge.network,
+    amount: challenge.amount,
+    payTo: challenge.recipient,
+    resource,
+    challengeNonce: challenge.nonce,
+    memo: challenge.memo,
+    error: "Payment required",
+  });
+  return {
+    ...challengeHeaders(challenge, realm),
+    "PAYMENT-REQUIRED": encodePaymentRequired(pr),
+  };
+}
+
+/** Decodes a PAYMENT-SIGNATURE header (base64 JSON PaymentPayload). Returns null on garbage. */
+export function decodePaymentSignature(value: string): X402PaymentPayload | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64").toString("utf8")) as X402PaymentPayload;
+    if (!parsed || typeof parsed !== "object" || !parsed.payload) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+interface ProofExtraction {
+  tx: string | null;
+  nonce: string | null;
+  payerHint: string | null;
+  network: string | null; // CAIP-2 or legacy label, as chosen by the client
+}
+
+/**
+ * Pulls a payable proof out of either dialect:
+ * - x402 v2: PAYMENT-SIGNATURE PaymentPayload (payload.tx + payload.nonce)
+ * - Verge legacy: X-Pay-Tx + X-Pay-Nonce headers
+ */
+export function extractProof(payload: X402PaymentPayload | null, legacyTx?: string | null, legacyNonce?: string | null): ProofExtraction {
+  if (payload) {
+    return {
+      tx: typeof payload.payload.tx === "string" ? payload.payload.tx : null,
+      nonce: typeof payload.payload.nonce === "string" ? payload.payload.nonce : null,
+      payerHint: typeof payload.payload.from === "string" ? payload.payload.from : null,
+      network: payload.accepted?.network ?? null,
+    };
+  }
+  return { tx: legacyTx || null, nonce: legacyNonce || null, payerHint: null, network: null };
+}
+
+function invalid(reason: string, payer?: string): X402VerifyResponse {
+  return { isValid: false, invalidReason: reason, ...(payer ? { payer } : {}) };
+}
+
+export type FacilitatorOptions = Pick<PaywallOptions, "rpcUrl" | "replayStore" | "challengeStore" | "realm">;
+
+/**
+ * Facilitator-grade verify (x402 v2 §7.1): read-only. Resolves the rail from
+ * the requirements' CAIP-2 network, verifies the settlement transaction on
+ * chain, and reports validity WITHOUT committing any state.
+ */
+export async function verifyX402Payment(
+  opts: FacilitatorOptions,
+  paymentPayload: X402PaymentPayload,
+  paymentRequirements: X402PaymentRequirements
+): Promise<X402VerifyResponse> {
+  try {
+    const network = networkFromCaip2(paymentRequirements.network);
+    if (!network) return invalid("unsupported_network");
+    if (paymentRequirements.scheme !== "exact") return invalid("unsupported_scheme");
+    const rail = getRail(network);
+
+    const extra = (paymentRequirements.extra || {}) as Record<string, unknown>;
+    const expectedNonce = typeof extra.nonce === "string" ? extra.nonce : null;
+    const tx = typeof paymentPayload.payload.tx === "string" ? paymentPayload.payload.tx : null;
+    if (!tx) return invalid("payment_payload_missing_tx");
+    if (expectedNonce && paymentPayload.payload.nonce !== expectedNonce) return invalid("nonce_mismatch");
+
+    // Amount must cover requirements (already atomic units).
+    const amountHuman = humanAmount(paymentRequirements.amount, rail.decimals);
+    if (paymentPayload.accepted && paymentPayload.accepted.amount !== paymentRequirements.amount) return invalid("amount_mismatch");
+    if (paymentPayload.accepted && paymentPayload.accepted.payTo?.toLowerCase() !== paymentRequirements.payTo?.toLowerCase()) return invalid("payto_mismatch");
+
+    const recipient = paymentRequirements.payTo;
+    let payer: string | null = paymentPayload.payload.from && typeof paymentPayload.payload.from === "string" ? paymentPayload.payload.from : null;
+
+    if (rail.kind === "evm") {
+      let lastError: unknown;
+      for (const url of rpcCandidates(network, opts.rpcUrl)) {
+        try {
+          const client = createPublicClient({ chain: rail.chain, transport: transportFor(url) });
+          const result = await verifyStablecoinTransferDetailed({ client, tx: tx as Hash, recipient, amount: amountHuman, rail });
+          if (result.ok) {
+            if (result.payer) payer = result.payer;
+            return { isValid: true, payer: payer || undefined };
+          }
+          return invalid("settlement_not_found_onchain");
+        } catch (e) { lastError = e; continue; }
+      }
+      if (lastError) return invalid("rpc_unavailable");
+      return invalid("rpc_unavailable");
+    }
+
+    if (rail.kind === "solana") {
+      let lastError: unknown;
+      for (const url of rpcCandidates(network, opts.rpcUrl)) {
+        try {
+          const ok = await verifySolanaUsdcTransfer(url, tx, recipient, amountHuman, rail);
+          if (ok) return { isValid: true, payer: payer || undefined };
+          return invalid("settlement_not_found_onchain");
+        } catch (e) { lastError = e; continue; }
+      }
+      return invalid(lastError ? "rpc_unavailable" : "rpc_unavailable");
+    }
+
+    // Sui
+    const okSui = await verifySuiUsdcTransfer(opts.rpcUrl || rail.defaultRpcUrl, tx, recipient, amountHuman, rail);
+    return okSui ? { isValid: true, payer: payer || undefined } : invalid("settlement_not_found_onchain");
+  } catch (e) {
+    return invalid("verification_error");
+  }
+}
+
+/**
+ * Facilitator-grade settle (x402 v2 §7.2) for the upfront direct-transfer flow:
+ * verifies the on-chain payment, then durably commits — consumes the challenge
+ * nonce from the ChallengeStore and records the tx in the ReplayStore.
+ */
+export async function settleX402Payment(
+  opts: FacilitatorOptions,
+  paymentPayload: X402PaymentPayload,
+  paymentRequirements: X402PaymentRequirements
+): Promise<X402SettleResponse> {
+  const network = networkFromCaip2(paymentRequirements.network);
+  if (!network) return { success: false, errorReason: "unsupported_network", transaction: "", network: paymentRequirements.network };
+  const rail = getRail(network);
+
+  const check = await verifyX402Payment(opts, paymentPayload, paymentRequirements);
+  if (!check.isValid) {
+    return { success: false, errorReason: check.invalidReason, payer: check.payer, transaction: "", network: paymentRequirements.network };
+  }
+
+  const tx = String(paymentPayload.payload.tx);
+  const nonce = typeof paymentPayload.payload.nonce === "string" ? paymentPayload.payload.nonce : null;
+  const challengeStore = opts.challengeStore || memoryChallengeStore;
+  const replayKey = `${network}:${tx.toLowerCase()}`;
+
+  try {
+    const alreadyUsed = opts.replayStore ? await opts.replayStore.has(replayKey) : memoryReplayStore.has(replayKey);
+    if (alreadyUsed) return { success: false, errorReason: "transaction_already_settled", payer: check.payer, transaction: tx, network: paymentRequirements.network };
+    if (nonce) {
+      const consumed = await challengeStore.consume(nonce, { network, recipient: paymentRequirements.payTo, amount: humanAmount(paymentRequirements.amount, rail.decimals) });
+      if (!consumed) return { success: false, errorReason: "nonce_unknown_or_expired", payer: check.payer, transaction: "", network: paymentRequirements.network };
+    }
+    if (opts.replayStore) await opts.replayStore.add(replayKey); else memoryReplayStore.add(replayKey);
+    return {
+      success: true,
+      payer: check.payer,
+      transaction: tx,
+      network: paymentRequirements.network,
+      amount: paymentRequirements.amount,
+    };
+  } catch {
+    return { success: false, errorReason: "settlement_store_unavailable", payer: check.payer, transaction: "", network: paymentRequirements.network };
+  }
+}
+
 const memoryReplayStore = new Set<string>();
 const memoryChallengeStore: ChallengeStore = {
   _items: new Map<string, Challenge>(),
@@ -342,3 +729,10 @@ const memoryChallengeStore: ChallengeStore = {
     return challenge;
   },
 } as ChallengeStore & { _items: Map<string, Challenge> };
+
+/** Public handles to the default process-local stores — for demos and simple integrations. */
+export const defaultChallengeStore: ChallengeStore = memoryChallengeStore;
+export const defaultReplayStore: ReplayStore = {
+  has: (txHash: string) => memoryReplayStore.has(txHash),
+  add: (txHash: string) => { memoryReplayStore.add(txHash); },
+};

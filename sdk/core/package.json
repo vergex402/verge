@@ -1,7 +1,7 @@
 {
   "name": "@vergex402/core",
-  "version": "0.3.1",
-  "description": "Shared HTTP 402 payment verification core: Robinhood/USDG flagship, plus opt-in Ethereum, Base, Arbitrum, Polygon, Solana, and Sui stablecoin rails.",
+  "version": "0.4.0",
+  "description": "Shared x402 v2-compatible HTTP 402 payment verification: PAYMENT-REQUIRED/PAYMENT-SIGNATURE wire, CAIP-2 networks, facilitator verify/settle. Robinhood/USDG flagship plus Ethereum, Base, Arbitrum, Polygon, Solana, and Sui stablecoin rails.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,12 +11,24 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["x402", "Robinhood", "usdg", "usdc", "solana", "sui", "micropayments", "ai-agents"],
+  "keywords": [
+    "x402",
+    "Robinhood",
+    "usdg",
+    "usdc",
+    "solana",
+    "sui",
+    "micropayments",
+    "ai-agents"
+  ],
   "license": "MIT",
   "dependencies": {
     "viem": "^2.0.0"

@@ -1,6 +1,8 @@
 # @vergex402/express
 
-Express middleware for HTTP 402 stablecoin micropayments. Defaults to **USDG on Robinhood Chain** (ID `4663`), with explicit Base/Arbitrum/Polygon USDC support through the shared core.
+Express middleware for **x402 v2-compatible** HTTP 402 stablecoin micropayments. Defaults to **USDG on Robinhood Chain** (ID `4663`), with explicit Base/Arbitrum/Polygon USDC support through the shared core.
+
+Challenges are emitted in both dialects: the standard `PAYMENT-REQUIRED` header (base64 PaymentRequired, CAIP-2 networks, atomic amounts) **and** the legacy `X-Pay-*` set. Retries are accepted with `PAYMENT-SIGNATURE` (x402 v2) or `X-Pay-Tx` + `X-Pay-Nonce`.
 
 ```bash
 npm install @vergex402/express

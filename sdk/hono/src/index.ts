@@ -15,13 +15,13 @@
 // This is a thin Hono adapter over @vergex402/core, which does the actual challenge
 // issuance and on-chain USDG verification. Same logic is shared with @vergex402/express.
 
-import { evaluatePayment, type PaywallOptions, type ReplayStore } from "@vergex402/core";
+import { decodePaymentSignature, evaluatePayment, extractProof, type PaywallOptions, type ReplayStore } from "@vergex402/core";
 
 export type { PaywallOptions, ReplayStore };
 
 // Minimal structural types so this package has no hard dependency on `hono`.
 interface HonoLikeContext {
-  req: { header(name: string): string | undefined };
+  req: { header(name: string): string | undefined; url: string };
   json(body: unknown, status?: 402): unknown;
   header(name: string, value: string): void;
 }
@@ -30,10 +30,12 @@ type HonoLikeHandler = (c: HonoLikeContext, next: HonoLikeNext) => Promise<unkno
 
 export function paywall(opts: PaywallOptions): HonoLikeHandler {
   return async (c, next) => {
-    const tx = c.req.header("x-pay-tx");
-    const nonce = c.req.header("x-pay-nonce");
+    // Dual dialect: standard x402 v2 PAYMENT-SIGNATURE, or legacy X-Pay-* headers.
+    const sig = c.req.header("payment-signature");
+    const payload = decodePaymentSignature(sig || "");
+    const proof = extractProof(payload, c.req.header("x-pay-tx"), c.req.header("x-pay-nonce"));
 
-    const outcome = await evaluatePayment(opts, tx, nonce);
+    const outcome = await evaluatePayment(opts, proof.tx, proof.nonce, { url: c.req.url });
 
     if ((outcome as { kind: string }).kind === "nonce_invalid") {
       return c.json({ error: "Payment nonce is unknown or expired", code: "NONCE_INVALID" }, 402);

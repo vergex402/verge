@@ -14,16 +14,18 @@
 // issuance and on-chain USDG verification. Same logic is shared with @vergex402/hono.
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
-import { evaluatePayment, type PaywallOptions, type ReplayStore } from "@vergex402/core";
+import { decodePaymentSignature, evaluatePayment, extractProof, type PaywallOptions, type ReplayStore } from "@vergex402/core";
 
 export type { PaywallOptions, ReplayStore };
 
 export function paywall(opts: PaywallOptions): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const tx = req.header("x-pay-tx");
-    const nonce = req.header("x-pay-nonce");
+    // Dual dialect: standard x402 v2 PAYMENT-SIGNATURE, or legacy X-Pay-* headers.
+    const sig = req.header("payment-signature");
+    const payload = decodePaymentSignature(sig || "");
+    const proof = extractProof(payload, req.header("x-pay-tx"), req.header("x-pay-nonce"));
 
-    const outcome = await evaluatePayment(opts, tx, nonce);
+    const outcome = await evaluatePayment(opts, proof.tx, proof.nonce, { url: `${req.protocol}://${req.get("host")}${req.originalUrl}` });
 
     if ((outcome as { kind: string }).kind === "nonce_invalid") {
       res.status(402).json({ error: "Payment nonce is unknown or expired", code: "NONCE_INVALID" });

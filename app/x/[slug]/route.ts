@@ -5,10 +5,17 @@
 // the publisher never has to run their own server.
 
 import { NextRequest } from "next/server";
-import { evaluatePayment, type PaymentNetwork } from "@vergex402/core";
+import { decodePaymentSignature, evaluatePayment, extractProof, type PaymentNetwork } from "@vergex402/core";
 import { queryOne, query } from "@/app/lib/db";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
 import { HOSTED_TEMPLATES } from "@/app/lib/hosted-templates";
+
+function publicOrigin(req: NextRequest): string {
+  const xfHost = req.headers.get("x-forwarded-host");
+  const xfProto = req.headers.get("x-forwarded-proto") || "https";
+  if (xfHost) return `${xfProto.split(",")[0].trim()}://${xfHost.split(",")[0].trim()}`;
+  return new URL(req.url).origin;
+}
 
 export const runtime = "nodejs";
 
@@ -33,19 +40,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   const template = row.hostedTemplate ? HOSTED_TEMPLATES[row.hostedTemplate] : null;
   if (!template) return Response.json({ error: "Hosted endpoint misconfigured" }, { status: 500 });
 
-  const tx = req.headers.get("x-pay-tx");
-  const nonce = req.headers.get("x-pay-nonce");
+  // Dual dialect: standard x402 v2 PAYMENT-SIGNATURE, or legacy X-Pay-* headers.
+  const sig = req.headers.get("payment-signature");
+  const payload = decodePaymentSignature(sig || "");
+  const proof = extractProof(payload, req.headers.get("x-pay-tx"), req.headers.get("x-pay-nonce"));
+  const tx = proof.tx;
+  const nonce = proof.nonce;
 
   await query(`UPDATE endpoints SET requests_count = requests_count + 1 WHERE id = $1`, [row.id]);
 
   const outcome = await evaluatePayment(
-    { amount: Number(row.priceUsdg), recipient: row.wallet, network: row.network as PaymentNetwork, challengeStore: pgChallengeStore, replayStore: pgReplayStore, realm: "verge" },
+    { amount: Number(row.priceUsdg), recipient: row.wallet, network: row.network as PaymentNetwork, challengeStore: pgChallengeStore, replayStore: pgReplayStore, realm: "verge", resourceName: row.name.slice(0, 32) },
     tx,
-    nonce
+    nonce,
+    { url: publicOrigin(req) + `/x/${slug}` }
   );
 
   if (outcome.kind === "challenge") {
-    return new Response(JSON.stringify({ error: "Payment required", code: "PAYMENT_REQUIRED", endpoint: row.name, challenge: outcome.challenge, retry: { method: "GET", url: `/x/${slug}`, headers_required: ["x-pay-tx", "x-pay-nonce"] } }), {
+    return new Response(JSON.stringify({ error: "Payment required", code: "PAYMENT_REQUIRED", x402Version: 2, endpoint: row.name, challenge: outcome.challenge, retry: { method: "GET", url: `/x/${slug}`, headers_required: ["payment-signature | x-pay-tx + x-pay-nonce"] } }), {
       status: 402, headers: { "Content-Type": "application/json", ...outcome.headers },
     });
   }

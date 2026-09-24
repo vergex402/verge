@@ -114,14 +114,21 @@ app.get("/api/premium", (c) => c.json({ ok: true, message: "unlocked" }));`}</Co
 
           <Section id="x402-flow" title="The x402 request flow">
             <ol className="space-y-4 leading-7 ink-mid">
-              <li><strong className="ink">1. Caller requests a protected route.</strong> Without proof, Verge returns HTTP 402 and payment headers.</li>
-              <li><strong className="ink">2. Caller pays the requested asset.</strong> The challenge includes amount, recipient, network, token reference, and nonce.</li>
-              <li><strong className="ink">3. Caller retries with proof.</strong> Send <code>X-Pay-Tx</code> and <code>X-Pay-Nonce</code>.</li>
+              <li><strong className="ink">1. Caller requests a protected route.</strong> Without proof, Verge returns HTTP 402 with both wire formats: the x402 v2 <code>PAYMENT-REQUIRED</code> header (base64 JSON) and the legacy <code>X-Pay-*</code> headers.</li>
+              <li><strong className="ink">2. Caller pays the requested asset.</strong> The challenge includes amount, recipient, network (CAIP-2 in the v2 header), token reference, and nonce.</li>
+              <li><strong className="ink">3. Caller retries with proof.</strong> Standard agents send <code>PAYMENT-SIGNATURE</code> (base64 PaymentPayload with the settlement tx); Verge-native callers can send <code>X-Pay-Tx</code> + <code>X-Pay-Nonce</code>.</li>
               <li><strong className="ink">4. Middleware verifies settlement.</strong> EVM rails check stablecoin Transfer logs; Solana and Sui use their own transaction/balance verification paths.</li>
             </ol>
             <Code>{`curl -i http://localhost:3000/api/premium
 
 HTTP/1.1 402 Payment Required
+PAYMENT-REQUIRED: eyJ4NDAyVmVyc2lvbiI6Mi4uLg==  (base64 of:)
+{ "x402Version": 2, "resource": { "url": "..." },
+  "accepts": [{ "scheme": "exact", "network": "eip155:4663",
+    "amount": "1000", "asset": "0x5fc5...d168", "payTo": "0x...",
+    "maxTimeoutSeconds": 600, "extra": { "paymentFlow": "upfront",
+    "nonce": "8f3c2d" } }],
+  "extensions": { "x-verge": { "info": { "nonce": "8f3c2d" } } } }
 WWW-Authenticate: x402 realm="verge", nonce="8f3c2d", amount="0.001", recipient="0x...", network="robinhood-mainnet"
 X-Pay-Token: USDG
 X-Pay-Network: robinhood-mainnet
@@ -129,12 +136,41 @@ X-Pay-Chain-Id: 4663
 X-Pay-Amount: 0.001
 X-Pay-Recipient: 0x...
 X-Pay-Nonce: 8f3c2d`}</Code>
-            <Code>{`curl -i http://localhost:3000/api/premium \
-  -H "X-Pay-Tx: 0xYourSettlementTx" \
+            <Code>{`# Standard x402 v2 agent style:
+curl -i http://localhost:3000/api/premium \\
+  -H "PAYMENT-SIGNATURE: <base64 of PaymentPayload JSON>
+   { x402Version: 2, accepted: { scheme: exact, network: eip155:4663 },
+     payload: { tx: 0xYourSettlementTx, nonce: 8f3c2d } }"
+
+# Verge-native style (equivalent):
+curl -i http://localhost:3000/api/premium \\
+  -H "X-Pay-Tx: 0xYourSettlementTx" \\
   -H "X-Pay-Nonce: 8f3c2d"
 
 HTTP/1.1 200 OK
 { "ok": true, "message": "unlocked" }`}</Code>
+          </Section>
+
+          <Section id="facilitator" title="Facilitator API (hosted)">
+            <p className="leading-7 ink-mid">Vergesnowy.com runs a public x402 v2 facilitator. Any resource server — including your <code>paywall()</code> middleware — can delegate verification and settlement commitment to it, the same role Coinbase CDP or thirdweb facilitators play, but for Robinhood Chain USDG plus six more rails. Zero protocol fees.</p>
+            <Code>{`curl https://vergesnowy.com/api/facilitator/supported
+
+{ "kinds": [ { "x402Version": 2, "scheme": "exact",
+    "network": "eip155:4663" }, "..." ],
+  "extensions": ["x-verge"] }
+
+# Read-only check (spec 7.1):
+curl -X POST https://vergesnowy.com/api/facilitator/verify \\
+  -H "content-type: application/json" \\
+  -d '{ "x402Version": 2,
+        "paymentPayload": { "payload": { "tx": "0x...", "nonce": "..." } },
+        "paymentRequirements": { "scheme": "exact", "network": "eip155:4663",
+          "amount": "1000", "asset": "0x5fc5...d168", "payTo": "0x..." } }
+
+{ "isValid": true, "payer": "0x..." }
+
+# Commit settlement (spec 7.2) - consumes the nonce, blocks replay:
+curl -X POST https://vergesnowy.com/api/facilitator/settle -d "...same body..."`}</Code>
           </Section>
 
           <Section id="client-retry" title="Client retry helper">
