@@ -9,6 +9,7 @@ import { decodePaymentSignature, evaluatePayment, extractProof, type PaymentNetw
 import { queryOne, query } from "@/app/lib/db";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
 import { HOSTED_TEMPLATES } from "@/app/lib/hosted-templates";
+import { recordSettlement } from "@/app/lib/reputation";
 
 function publicOrigin(req: NextRequest): string {
   const xfHost = req.headers.get("x-forwarded-host");
@@ -71,6 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   try {
     const data = await template.fetchData();
     await query(`UPDATE endpoints SET paid_calls_count = paid_calls_count + 1, settlement_volume = settlement_volume + $2 WHERE id = $1`, [row.id, row.priceUsdg]);
+    if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: row.priceUsdg, resource: row.hostedTemplate || row.name, txHash: outcome.tx });
     return Response.json({ ok: true, endpoint: row.name, settled: true, tx, nonce, data }, { headers: { "X-Settlement-Verified": "true" } });
   } catch (error) {
     return Response.json({ error: "Upstream data source unavailable", detail: String(error instanceof Error ? error.message : error) }, { status: 502 });

@@ -16,6 +16,110 @@ async function fetchJson(url: string, init?: RequestInit) {
   return res.json();
 }
 
+async function fetchText(url: string, init?: RequestInit) {
+  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(8_000), headers: { "User-Agent": "Verge-Gateway/1.0", Accept: "application/json,text/xml", ...(init?.headers || {}) } });
+  if (!res.ok) throw new Error(`Upstream ${url} returned HTTP ${res.status}`);
+  return res.text();
+}
+
+// ---- Shared cache: one upstream fetch per TTL window, shared across payers ----
+const TTL_MS = 60_000;
+const cache = new Map<string, { at: number; data: unknown }>();
+async function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.data as T;
+  try {
+    const data = await loader();
+    cache.set(key, { at: Date.now(), data });
+    return data;
+  } catch (e) {
+    if (hit) return hit.data as T; // stale beats broken
+    throw e;
+  }
+}
+
+// ---- /news : Cointelegraph RSS → clean headline list ----
+interface NewsItem { title: string; link: string; pubDate: string; source: string }
+function parseRss(xml: string, limit: number): NewsItem[] {
+  const items: NewsItem[] = [];
+  const re = /<item>([\s\S]*?)<\/item>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) && items.length < limit) {
+    const block = m[1];
+    const pick = (tag: string) => {
+      const t = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`).exec(block);
+      if (!t) return "";
+      return t[1].replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, "").trim();
+    };
+    items.push({ title: pick("title"), link: pick("link"), pubDate: pick("pubDate"), source: "cointelegraph.com" });
+  }
+  return items.filter((i) => i.title);
+}
+
+async function newsSnapshot() {
+  const xml = await fetchText("https://cointelegraph.com/rss");
+  const items = parseRss(xml, 10);
+  if (!items.length) throw new Error("no items parsed");
+  return { kind: "crypto-headlines", provider: "cointelegraph.com/rss", fetchedAt: new Date().toISOString(), count: items.length, items };
+}
+
+// ---- /alerts + /whale-alerts : GeckoTerminal Robinhood chain pools ----
+interface GtPool {
+  pool: string; address: string; priceUsd: string; liquidityUsd: string;
+  volume24hUsd: string; change24hPct: string; txns24h: number; network: string;
+}
+async function gt(path: string): Promise<{ data?: Array<{ attributes?: Record<string, unknown> }> }> {
+  const text = await fetchText("https://api.geckoterminal.com/api/v2" + path);
+  return JSON.parse(text);
+}
+function shapePools(d: Awaited<ReturnType<typeof gt>>, limit: number): GtPool[] {
+  const out: GtPool[] = [];
+  for (const p of (d?.data || []).slice(0, limit)) {
+    const a = p.attributes || {} as Record<string, any>;
+    out.push({
+      pool: a.name, address: a.address, priceUsd: a.base_token_price_usd, liquidityUsd: a.reserve_in_usd,
+      volume24hUsd: a.volume_usd?.h24, change24hPct: a.price_change_percentage?.h24,
+      txns24h: (a.transactions?.h24?.buys || 0) + (a.transactions?.h24?.sells || 0), network: "robinhood",
+    });
+  }
+  return out;
+}
+async function trendingPools() {
+  const d = await gt("/networks/robinhood/trending_pools?page=1");
+  const pools = shapePools(d, 10);
+  if (!pools.length) throw new Error("no pools");
+  return { kind: "trending-pools", chain: "robinhood-4663", provider: "geckoterminal.com", fetchedAt: new Date().toISOString(), count: pools.length, pools };
+}
+async function whalePools() {
+  // GeckoTerminal only allows h24_volume_usd_desc / h24_tx_count_desc sorts —
+  // rank by liquidity client-side so "whale" = biggest pools, not just busiest.
+  const d = await gt("/networks/robinhood/pools?sort=h24_volume_usd_desc&page=1");
+  const pools = shapePools(d, 20).sort((a, b) => parseFloat(b.liquidityUsd || "0") - parseFloat(a.liquidityUsd || "0")).slice(0, 10);
+  if (!pools.length) throw new Error("no pools");
+  return { kind: "whale-liquidity", chain: "robinhood-4663", provider: "geckoterminal.com", fetchedAt: new Date().toISOString(), count: pools.length, pools };
+}
+
+// ---- /signals : momentum derived from trending + whale pools ----
+async function momentumSignals() {
+  const [tr, wh] = await Promise.all([cached("trending", trendingPools), cached("whales", whalePools)]);
+  const seen = new Set<string>();
+  const rows: Array<{ pool: string; signal: string; change24hPct: number; volumeLiquidityRatio: number | null; txns24h: number }> = [];
+  for (const p of [...tr.pools, ...wh.pools]) {
+    if (seen.has(p.address)) continue;
+    seen.add(p.address);
+    const chg = parseFloat(p.change24hPct || "0");
+    const vol = parseFloat(p.volume24hUsd || "0");
+    const liq = parseFloat(p.liquidityUsd || "0");
+    let signal = "NEUTRAL";
+    if (chg > 15 && vol > liq * 0.1) signal = "STRONG_BUY_MOMENTUM";
+    else if (chg > 5) signal = "BUY_MOMENTUM";
+    else if (chg < -15) signal = "STRONG_SELL_PRESSURE";
+    else if (chg < -5) signal = "SELL_PRESSURE";
+    rows.push({ pool: p.pool, signal, change24hPct: chg, volumeLiquidityRatio: liq ? +(vol / liq).toFixed(2) : null, txns24h: p.txns24h });
+  }
+  return { kind: "momentum-signals", chain: "robinhood-4663", derivedFrom: "geckoterminal trending + top-liquidity", fetchedAt: new Date().toISOString(), count: rows.length, signals: rows };
+}
+
 export const HOSTED_TEMPLATES: Record<string, HostedTemplate> = {
   "random-joke": {
     id: "random-joke",
@@ -41,6 +145,34 @@ export const HOSTED_TEMPLATES: Record<string, HostedTemplate> = {
     description: "Live BTC and ETH USD spot price, sourced from CoinGecko.",
     defaultPrice: 0.001,
     fetchData: () => fetchJson("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd"),
+  },
+  news: {
+    id: "news",
+    name: "Crypto headlines",
+    description: "Latest crypto news headlines, sourced live from Cointelegraph RSS. Cached 60s across all payers.",
+    defaultPrice: 0.001,
+    fetchData: () => cached("news", newsSnapshot),
+  },
+  alerts: {
+    id: "alerts",
+    name: "Trending pools (Robinhood Chain)",
+    description: "Trending liquidity pools on Robinhood Chain, sourced live from GeckoTerminal. Cached 60s across all payers.",
+    defaultPrice: 0.001,
+    fetchData: () => cached("trending", trendingPools),
+  },
+  "whale-alerts": {
+    id: "whale-alerts",
+    name: "Whale liquidity (Robinhood Chain)",
+    description: "Biggest-liquidity pools on Robinhood Chain — a proxy for whale activity. Cached 60s across all payers.",
+    defaultPrice: 0.001,
+    fetchData: () => cached("whales", whalePools),
+  },
+  signals: {
+    id: "signals",
+    name: "Momentum signals (Robinhood Chain)",
+    description: "Buy/sell momentum signals derived from live Robinhood Chain pool data (price change + volume/liquidity ratio).",
+    defaultPrice: 0.0015,
+    fetchData: () => cached("signals", momentumSignals),
   },
 };
 

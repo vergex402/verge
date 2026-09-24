@@ -4,10 +4,11 @@
 // Accepts { x402Version, paymentPayload, paymentRequirements }.
 
 import { NextRequest } from "next/server";
-import { settleX402Payment, type X402PaymentPayload, type X402PaymentRequirements } from "@vergex402/core";
+import { settleX402Payment, humanAmount, networkFromCaip2, getRail, type X402PaymentPayload, type X402PaymentRequirements } from "@vergex402/core";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
 import { allowRateLimit } from "@/app/lib/db";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
+import { recordSettlement } from "@/app/lib/reputation";
 
 export const runtime = "nodejs";
 
@@ -42,5 +43,14 @@ export async function POST(req: NextRequest) {
     body.paymentPayload,
     body.paymentRequirements
   );
+  if (result.success && result.payer) {
+    const network = networkFromCaip2(body.paymentRequirements.network);
+    const decimals = network ? getRail(network).decimals : 6;
+    void recordSettlement(result.payer, {
+      valueUsdg: humanAmount(result.amount ?? body.paymentRequirements.amount, decimals),
+      resource: "facilitator",
+      txHash: result.transaction,
+    });
+  }
   return Response.json(result);
 }

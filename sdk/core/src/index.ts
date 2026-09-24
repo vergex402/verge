@@ -199,7 +199,7 @@ export type PaymentOutcome =
   | { kind: "nonce_invalid" }
   | { kind: "replayed" }
   | { kind: "invalid" }
-  | { kind: "unlocked"; rail: PaymentRail }
+  | { kind: "unlocked"; rail: PaymentRail; tx: string; payer: string | null }
   | { kind: "error"; detail: string };
 
 interface EvmVerifyArgs { client: ReturnType<typeof createPublicClient>; tx: Hash; recipient: string; amount: number; rail: EvmRail; }
@@ -318,12 +318,15 @@ export async function evaluatePayment(opts: PaywallOptions, tx: string | undefin
     if (alreadyUsed) return { kind: "replayed" };
 
     let ok = false;
+    let payer: string | null = null;
     if (rail.kind === "evm") {
       let lastError: unknown;
       for (const url of rpcCandidates(network, opts.rpcUrl)) {
         try {
           const client = createPublicClient({ chain: rail.chain, transport: transportFor(url) });
-          ok = await verifyStablecoinTransfer({ client, tx: tx as Hash, recipient: opts.recipient, amount: opts.amount, rail });
+          const result = await verifyStablecoinTransferDetailed({ client, tx: tx as Hash, recipient: opts.recipient, amount: opts.amount, rail });
+          ok = result.ok;
+          payer = result.payer;
           lastError = undefined;
           break;
         } catch (e) { lastError = e; continue; }
@@ -344,7 +347,7 @@ export async function evaluatePayment(opts: PaywallOptions, tx: string | undefin
     }
     if (!ok) return { kind: "invalid" };
     if (opts.replayStore) await opts.replayStore.add(replayKey); else memoryReplayStore.add(replayKey);
-    return { kind: "unlocked", rail };
+    return { kind: "unlocked", rail, tx, payer };
   } catch (e) { return { kind: "error", detail: String(e instanceof Error ? e.message : e) }; }
 }
 
@@ -490,7 +493,7 @@ function atomicAmount(amountHuman: number, decimals: number): string {
   return raw.toString();
 }
 
-function humanAmount(amountAtomic: string | number, decimals: number): number {
+export function humanAmount(amountAtomic: string | number, decimals: number): number {
   const raw = BigInt(String(Math.round(Number(amountAtomic))));
   return Number(raw) / 10 ** decimals;
 }

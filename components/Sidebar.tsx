@@ -10,6 +10,11 @@ const groups = [
     { key: "Marketplace", label: "Marketplace", icon: "marketplace" },
     { key: "Receipts", label: "Receipts", icon: "receipts" },
   ]},
+  { title: "AGENTS", items: [
+    { key: "Wallets", label: "Agent wallets", icon: "wallet" },
+    { key: "Vault", label: "Credential vault", icon: "key" },
+    { key: "Reputation", label: "Reputation", icon: "network" },
+  ]},
   { title: "DEVELOPER", items: [
     { key: "API Keys", label: "API keys", icon: "key" },
     { key: "Networks", label: "Payment rails", icon: "network" },

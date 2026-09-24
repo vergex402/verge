@@ -90,6 +90,42 @@ export function ensureSchema(): Promise<void> {
         endpoint_id TEXT,
         settled_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS vault_entries (
+        name TEXT PRIMARY KEY,
+        enc TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        tag TEXT NOT NULL,
+        owner_wallet TEXT,
+        created_at BIGINT NOT NULL,
+        hits BIGINT NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS vault_entries_owner_idx ON vault_entries(owner_wallet);
+      CREATE TABLE IF NOT EXISTS vault_audit (
+        id BIGSERIAL PRIMARY KEY,
+        t BIGINT NOT NULL,
+        kind TEXT NOT NULL,
+        name TEXT,
+        detail TEXT
+      );
+      CREATE TABLE IF NOT EXISTS agent_wallets (
+        address TEXT PRIMARY KEY,
+        owner_wallet TEXT NOT NULL,
+        label TEXT NOT NULL,
+        vault_ref TEXT NOT NULL,
+        chain_id INTEGER NOT NULL DEFAULT 4663,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS agent_wallets_owner_idx ON agent_wallets(owner_wallet);
+      CREATE TABLE IF NOT EXISTS reputation (
+        address TEXT PRIMARY KEY,
+        first_seen BIGINT NOT NULL,
+        last_seen BIGINT NOT NULL,
+        settled_count BIGINT NOT NULL DEFAULT 0,
+        total_usdg DOUBLE PRECISION NOT NULL DEFAULT 0,
+        resources JSONB NOT NULL DEFAULT '{}'::jsonb,
+        txs JSONB NOT NULL DEFAULT '[]'::jsonb
+      );
+      CREATE INDEX IF NOT EXISTS reputation_rank_idx ON reputation(settled_count DESC, total_usdg DESC);
     `).then(() => undefined);
   }
   return schemaReady;

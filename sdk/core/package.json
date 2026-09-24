@@ -1,6 +1,6 @@
 {
   "name": "@vergex402/core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Shared x402 v2-compatible HTTP 402 payment verification: PAYMENT-REQUIRED/PAYMENT-SIGNATURE wire, CAIP-2 networks, facilitator verify/settle. Robinhood/USDG flagship plus Ethereum, Base, Arbitrum, Polygon, Solana, and Sui stablecoin rails.",
   "type": "module",
   "main": "./dist/index.js",

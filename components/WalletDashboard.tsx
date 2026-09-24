@@ -16,11 +16,14 @@ import LiveDemo from "@/components/LiveDemo";
 
 const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as const;
 const erc20Abi = [{ type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
-type Tab = "Overview" | "Live Demo" | "Transactions" | "Marketplace" | "Receipts" | "API Keys" | "Networks";
+type Tab = "Overview" | "Live Demo" | "Transactions" | "Marketplace" | "Receipts" | "API Keys" | "Networks" | "Wallets" | "Vault" | "Reputation";
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null };
 type Metrics = { endpoints: number; discoveryHits: number; paidCalls: number; settlementVolume: number };
+type AgentWallet = { label: string; address: string; vaultRef: string; chainId: number; createdAt: number };
+type VaultEntry = { name: string; createdAt: number; hits: number; encLen: number };
+type ReputationEntry = { address: string; score: number; tier: string; settledCount: number; totalUsdg: number; firstSeen: number | null; lastSeen: number | null; resources: Record<string, number>; txHashes: string[] };
 
 async function getData(path: string) {
   const response = await fetch(path, { cache: "no-store" });
@@ -71,12 +74,23 @@ export default function WalletDashboard() {
   const [publishBusy, setPublishBusy] = useState(false);
   const [justPublished, setJustPublished] = useState<Listing | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [agentWallets, setAgentWallets] = useState<AgentWallet[]>([]);
+  const [newWallet, setNewWallet] = useState<(AgentWallet & { privateKey: string }) | null>(null);
+  const [walletLabel, setWalletLabel] = useState("");
+  const [walletBusy, setWalletBusy] = useState(false);
+  const [vaultEntries, setVaultEntries] = useState<VaultEntry[]>([]);
+  const [vaultName, setVaultName] = useState("");
+  const [vaultValue, setVaultValue] = useState("");
+  const [vaultBusy, setVaultBusy] = useState(false);
+  const [vaultDeletingName, setVaultDeletingName] = useState<string | null>(null);
+  const [myReputation, setMyReputation] = useState<ReputationEntry | null>(null);
+  const [repLeaderboard, setRepLeaderboard] = useState<ReputationEntry[]>([]);
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const usdg = useReadContract({ address: USDG, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (active !== "Marketplace" && (!authorized || !onRobinhood)) return;
+    if (active !== "Marketplace" && active !== "Reputation" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
     const load = async () => {
@@ -93,13 +107,25 @@ export default function WalletDashboard() {
         } else if (active === "API Keys") {
           const data = await getData("/api/keys");
           if (!cancelled) setKeys(data.keys || []);
+        } else if (active === "Wallets") {
+          const data = await getData("/api/wallets");
+          if (!cancelled) setAgentWallets(data.wallets || []);
+        } else if (active === "Vault") {
+          const data = await getData("/api/vault");
+          if (!cancelled) setVaultEntries(data.entries || []);
+        } else if (active === "Reputation") {
+          const [mine, board] = await Promise.all([
+            addr ? getData(`/api/reputation?address=${addr}`) : Promise.resolve(null),
+            getData("/api/reputation?limit=10"),
+          ]);
+          if (!cancelled) { setMyReputation(mine); setRepLeaderboard(board.leaderboard || []); }
         }
       } catch (error) { if (!cancelled) setActivityError(error instanceof Error ? error.message : "Could not load workspace data"); }
       finally { if (!cancelled) setActivityLoading(false); }
     };
     void load();
     return () => { cancelled = true; };
-  }, [active, authorized, onRobinhood]);
+  }, [active, authorized, onRobinhood, addr]);
 
   const authorize = useCallback(async () => {
     if (!addr || authBusy) return;
@@ -127,6 +153,45 @@ export default function WalletDashboard() {
     catch (error) { setAuthError(error instanceof Error ? error.message : "Could not revoke key"); }
     finally { setRevokingId(null); }
   }, [revokingId]);
+
+  const createWallet = useCallback(async () => {
+    if (walletBusy) return;
+    setWalletBusy(true); setAuthError(""); setNewWallet(null);
+    try {
+      const response = await fetch("/api/wallets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: walletLabel || undefined }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not create wallet");
+      setNewWallet(data); setWalletLabel("");
+      const list = await getData("/api/wallets"); setAgentWallets(list.wallets || []);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not create wallet"); }
+    finally { setWalletBusy(false); }
+  }, [walletBusy, walletLabel]);
+
+  const vaultStore = useCallback(async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (vaultBusy || !vaultName || !vaultValue) return;
+    setVaultBusy(true); setAuthError("");
+    try {
+      const response = await fetch("/api/vault", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: vaultName, value: vaultValue }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not store secret");
+      setVaultName(""); setVaultValue("");
+      const list = await getData("/api/vault"); setVaultEntries(list.entries || []);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not store secret"); }
+    finally { setVaultBusy(false); }
+  }, [vaultBusy, vaultName, vaultValue]);
+
+  const vaultRemove = useCallback(async (name: string) => {
+    if (vaultDeletingName) return;
+    setVaultDeletingName(name); setAuthError("");
+    try {
+      const response = await fetch(`/api/vault?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not delete secret");
+      setVaultEntries((current) => current.filter((entry) => entry.name !== name));
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not delete secret"); }
+    finally { setVaultDeletingName(null); }
+  }, [vaultDeletingName]);
 
   useEffect(() => {
     let live = true;
@@ -156,9 +221,13 @@ export default function WalletDashboard() {
     { id: "nav-tx", label: "Go to Transactions", hint: "Workspace", action: () => setActive("Transactions") },
     { id: "nav-mp", label: "Go to Marketplace", hint: "Workspace", action: () => setActive("Marketplace") },
     { id: "nav-rc", label: "Go to Receipts", hint: "Workspace", action: () => setActive("Receipts") },
+    { id: "nav-wallets", label: "Go to Agent Wallets", hint: "Agents", action: () => setActive("Wallets") },
+    { id: "nav-vault", label: "Go to Credential Vault", hint: "Agents", action: () => setActive("Vault") },
+    { id: "nav-rep", label: "Go to Reputation", hint: "Agents", action: () => setActive("Reputation") },
     { id: "nav-key", label: "Manage API keys", hint: "Developer", action: () => setActive("API Keys") },
     { id: "nav-net", label: "Explore payment rails", hint: "Developer", action: () => setActive("Networks") },
     { id: "gen-key", label: "Generate API key", hint: "Action", action: () => { setActive("API Keys"); if (authorized) void generateKey(); } },
+    { id: "gen-wallet", label: "Create agent wallet", hint: "Action", action: () => { setActive("Wallets"); if (authorized) void createWallet(); } },
     { id: "docs", label: "Open documentation", hint: "↗", action: () => window.open("/docs", "_blank") },
     { id: "catalog", label: "Open API catalog", hint: "↗", action: () => window.open("/api/catalog", "_blank") },
   ];
@@ -242,6 +311,42 @@ export default function WalletDashboard() {
     if (active === "Transactions" || active === "Receipts") return <>
       <PageHeading eyebrow={active === "Receipts" ? "SETTLEMENT PROOFS" : "ONCHAIN ACTIVITY"} title={active === "Receipts" ? "Receipts." : "Transactions."} description={active === "Receipts" ? "Confirmed incoming USDG transfers, linked to their onchain explorer records." : "Recent USDG Transfer events received by your connected wallet on Robinhood Chain."} action={<span className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] px-3 py-2 text-[10px] text-white/45"><span className="size-1.5 rounded-full bg-emerald-300"/>Robinhood · 4663</span>}/>
       {!authorized ? <TableEmpty title="Sign in to view wallet activity" description="A wallet signature is required to query transaction and receipt records for your address." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : activityError ? <div className="rounded-2xl border border-rose-200/10 bg-rose-200/[0.03] p-5 text-xs text-rose-200">{activityError}</div> : activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Scanning recent Transfer events…</div> : activity.length === 0 ? <TableEmpty title={active === "Receipts" ? "No receipts yet" : "No incoming transactions yet"} description="New confirmed USDG transfers to this wallet will be shown here with their block and explorer link."/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1.4fr_.8fr_.7fr_.6fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Transaction</span><span>Amount</span><span>Block</span><span>Status</span></div><div className="divide-y divide-white/[0.05]">{activity.map((tx) => <a key={tx.hash+tx.block} href={tx.explorer} target="_blank" rel="noreferrer" className="grid gap-2 px-4 py-3 transition hover:bg-white/[0.02] md:grid-cols-[1.4fr_.8fr_.7fr_.6fr] md:items-center md:gap-3 md:px-5"><span className="truncate font-mono text-[10px] text-white/70">{tx.hash.slice(0,14)}…{tx.hash.slice(-8)} <AppIcon name="arrow" size={11} className="ml-1 inline text-white/30"/></span><span className="text-xs text-emerald-200">{tx.amount.toFixed(6)} USDG</span><span className="text-[10px] text-white/40">Block {tx.block}</span><span className="text-[10px] text-emerald-200/70">Confirmed</span></a>)}</div></div>}
+    </>;
+
+    if (active === "Wallets") return <>
+      <PageHeading eyebrow="AGENT IDENTITY" title="Agent wallets." description="Generate EVM keypairs for your agents on Robinhood Chain. Private keys are shown once, then stored only in your encrypted vault — Verge never displays them again." action={authorized ? <button onClick={() => void createWallet()} disabled={walletBusy} className="inline-flex items-center gap-2 rounded-xl bg-emerald-200 px-3.5 py-2.5 text-[11px] font-semibold text-[#08120d] disabled:opacity-50"><AppIcon name="wallet" size={14}/> {walletBusy ? "Generating…" : "New agent wallet"}</button> : undefined}/>
+      {!authorized ? <TableEmpty title="Sign in to manage agent wallets" description="Agent wallets are tied to your wallet session and can only be created or viewed after wallet authorization." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : <>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row"><input value={walletLabel} onChange={(e) => setWalletLabel(e.target.value)} placeholder="Label (optional, e.g. research-bot)" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs sm:max-w-xs"/></div>
+        {newWallet && <div className="mb-4 rounded-2xl border border-amber-200/20 bg-amber-100/[0.04] p-4">
+          <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-medium text-amber-100"><AppIcon name="check" size={15}/>Wallet created · copy the private key now</span><button type="button" onClick={() => setNewWallet(null)} className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-white/50 transition hover:border-white/20 hover:text-white">Hide</button></div>
+          <p className="mt-1 text-[10px] text-white/40">This is the only time the private key is shown. It is vaulted under <code className="text-white/60">{newWallet.vaultRef}</code>.</p>
+          <div className="mt-3 space-y-2"><div><div className="text-[9px] uppercase tracking-wide text-white/30">Address</div><code className="mt-1 block break-all rounded-xl border border-white/[0.07] bg-black/20 p-3 font-mono text-[11px] text-white/80">{newWallet.address}</code></div><div><div className="text-[9px] uppercase tracking-wide text-white/30">Private key</div><code className="mt-1 block break-all rounded-xl border border-rose-200/20 bg-black/20 p-3 font-mono text-[11px] text-rose-100/90">{newWallet.privateKey}</code></div></div>
+        </div>}
+        {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading agent wallets…</div> : agentWallets.length === 0 ? <TableEmpty title="No agent wallets yet" description="Generate a wallet to give an agent its own on-chain identity for paying x402 endpoints." action={<button onClick={() => void createWallet()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first agent wallet</button>}/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_1.3fr_.9fr_.6fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Label</span><span>Address</span><span>Vault ref</span><span>Created</span></div><div className="divide-y divide-white/[0.05]">{agentWallets.map((w) => <div key={w.address} className="grid gap-2 px-4 py-4 md:grid-cols-[1fr_1.3fr_.9fr_.6fr] md:items-center md:px-5"><span className="text-[11px] text-white/75">{w.label}</span><span className="truncate font-mono text-[10px] text-white/65">{w.address}</span><span className="truncate font-mono text-[9px] text-white/35">{w.vaultRef}</span><span className="text-[10px] text-white/40">{new Date(w.createdAt).toLocaleDateString()}</span></div>)}</div></div>}
+      </>}
+    </>;
+
+    if (active === "Vault") return <>
+      <PageHeading eyebrow="AGENT CREDENTIALS" title="Credential vault." description="Store API keys and secrets your agents need, AES-256-GCM encrypted. Agents reference a secret as {{name}} — the real value never appears in an agent's request template." />
+      {!authorized ? <TableEmpty title="Sign in to manage your vault" description="Vault entries are scoped to your wallet session." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : <>
+        <form onSubmit={vaultStore} className="mb-4 grid gap-2 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:grid-cols-[1fr_2fr_auto]">
+          <input required value={vaultName} onChange={(e) => setVaultName(e.target.value)} placeholder="Name (e.g. openai_key)" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+          <input required type="password" value={vaultValue} onChange={(e) => setVaultValue(e.target.value)} placeholder="Secret value" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+          <button type="submit" disabled={vaultBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-xs font-semibold text-[#08120d] disabled:opacity-50">{vaultBusy ? "Encrypting…" : "Store secret"}</button>
+        </form>
+        {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading vault entries…</div> : vaultEntries.length === 0 ? <TableEmpty title="No secrets stored yet" description="Store an API key or credential once, then reference it as {{name}} in an agent's request template." /> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_.7fr_.6fr_.6fr_auto] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Name</span><span>Created</span><span>Uses</span><span>Size</span><span/></div><div className="divide-y divide-white/[0.05]">{vaultEntries.map((entry) => <div key={entry.name} className="grid gap-2 px-4 py-4 md:grid-cols-[1fr_.7fr_.6fr_.6fr_auto] md:items-center md:px-5"><span className="font-mono text-[11px] text-white/80">{"{{"}{entry.name}{"}}"}</span><span className="text-[10px] text-white/40">{new Date(entry.createdAt).toLocaleDateString()}</span><span className="text-[10px] text-white/45">{entry.hits}</span><span className="text-[10px] text-white/35">{entry.encLen}B</span><button onClick={() => void vaultRemove(entry.name)} disabled={vaultDeletingName === entry.name} className="justify-self-start rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 transition hover:border-rose-200/25 hover:text-rose-100 disabled:opacity-40 md:justify-self-end">{vaultDeletingName === entry.name ? "Deleting…" : "Delete"}</button></div>)}</div></div>}
+      </>}
+    </>;
+
+    if (active === "Reputation") return <>
+      <PageHeading eyebrow="ON-CHAIN TRUST" title="Reputation." description="Scores derived only from settled payments through Verge's facilitator — anchored to verifiable transaction hashes, never self-reported."/>
+      {authorized && myReputation && <div className="mb-5 rounded-2xl border border-emerald-200/20 bg-emerald-200/[0.05] p-5">
+        <div className="flex items-center justify-between"><div><div className="text-xs font-medium text-white/80">Your agent reputation</div><div className="mt-1 font-mono text-[10px] text-white/40">{myReputation.address}</div></div><div className="text-right"><div className="text-2xl font-medium text-emerald-200">{myReputation.score}</div><div className={`text-[10px] uppercase tracking-wide ${myReputation.tier === "trusted" ? "text-emerald-300" : myReputation.tier === "established" ? "text-emerald-200/70" : "text-white/40"}`}>{myReputation.tier}</div></div></div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4"><div><div className="text-[9px] text-white/35">Settled calls</div><div className="mt-1 text-sm text-white/80">{myReputation.settledCount}</div></div><div><div className="text-[9px] text-white/35">Total paid</div><div className="mt-1 text-sm text-white/80">{myReputation.totalUsdg} USDG</div></div><div><div className="text-[9px] text-white/35">First seen</div><div className="mt-1 text-sm text-white/80">{myReputation.firstSeen ? new Date(myReputation.firstSeen).toLocaleDateString() : "—"}</div></div><div><div className="text-[9px] text-white/35">Last active</div><div className="mt-1 text-sm text-white/80">{myReputation.lastSeen ? new Date(myReputation.lastSeen).toLocaleDateString() : "—"}</div></div></div>
+      </div>}
+      {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading leaderboard…</div> : repLeaderboard.length === 0 ? <TableEmpty title="No settled agents yet" description="Once agents start paying x402 endpoints through Verge, their reputation will appear here."/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1.4fr_.5fr_.6fr_.7fr_.6fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Address</span><span>Score</span><span>Tier</span><span>Settled</span><span>Total USDG</span></div><div className="divide-y divide-white/[0.05]">{repLeaderboard.map((r) => <div key={r.address} className="grid gap-2 px-4 py-4 md:grid-cols-[1.4fr_.5fr_.6fr_.7fr_.6fr] md:items-center md:px-5"><span className="truncate font-mono text-[10px] text-white/70">{r.address.slice(0,10)}…{r.address.slice(-6)}</span><span className="text-xs font-medium text-emerald-200">{r.score}</span><span className={`text-[10px] uppercase ${r.tier === "trusted" ? "text-emerald-300" : r.tier === "established" ? "text-emerald-200/70" : "text-white/40"}`}>{r.tier}</span><span className="text-[10px] text-white/45">{r.settledCount}</span><span className="text-[10px] text-white/45">{r.totalUsdg}</span></div>)}</div></div>}
     </>;
 
     return <>

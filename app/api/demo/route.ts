@@ -10,6 +10,7 @@ import { buildChallenge, challengeHeadersV2, decodePaymentSignature, defaultChal
 import { checkApiKey } from "@/app/lib/api-key";
 import { allowRateLimit } from "@/app/lib/db";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
+import { recordSettlement } from "@/app/lib/reputation";
 
 export const runtime = "nodejs";
 
@@ -90,6 +91,7 @@ export async function GET(req: NextRequest) {
     case "error":
       return Response.json({ error: "Payment verifier unavailable", code: "TX_RPC_ERROR", detail: outcome.detail }, { status: 503 });
     case "unlocked":
+      if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: PRICE_USDG, resource: "demo", txHash: outcome.tx });
       return Response.json({
         ok: true,
         network: NETWORK,

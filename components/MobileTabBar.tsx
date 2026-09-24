@@ -8,6 +8,9 @@ const items = [
   { key: "Transactions", label: "Activity", icon: "transactions" },
   { key: "Marketplace", label: "Market", icon: "marketplace" },
   { key: "Receipts", label: "Receipts", icon: "receipts" },
+  { key: "Wallets", label: "Wallets", icon: "wallet" },
+  { key: "Vault", label: "Vault", icon: "key" },
+  { key: "Reputation", label: "Rep", icon: "network" },
   { key: "API Keys", label: "Keys", icon: "key" },
   { key: "Networks", label: "Rails", icon: "network" },
 ] as const;
