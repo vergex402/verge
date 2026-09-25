@@ -15,7 +15,8 @@ export async function GET() {
   const address = await owner();
   if (!address) return Response.json({ error: "Wallet session required" }, { status: 401 });
   const keys = await query(`SELECT id, created_at as "createdAt", last_four as "lastFour", revoked_at as "revokedAt",
-    quota_limit as "quotaLimit", usage_count as "usageCount", usage_date as "usageDate", last_used_at as "lastUsedAt"
+    quota_limit as "quotaLimit", usage_count as "usageCount", usage_date as "usageDate", last_used_at as "lastUsedAt",
+    label, expires_at as "expiresAt"
     FROM api_keys WHERE wallet = $1 ORDER BY created_at DESC`, [address]);
   return Response.json({ keys });
 }

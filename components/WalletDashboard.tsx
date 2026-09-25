@@ -123,7 +123,7 @@ export default function WalletDashboard() {
   const vergeRaw = useReadContract({ address: VERGE_CA, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && (!authorized || !onRobinhood)) return;
+    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Invoices" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
     const load = async () => {
