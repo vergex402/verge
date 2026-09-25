@@ -136,6 +136,44 @@ export function ensureSchema(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS payments_log_wallet_idx ON payments_log(wallet, settled_at DESC);
       CREATE INDEX IF NOT EXISTS payments_log_payer_idx ON payments_log(payer_address);
+
+      -- API key enhancements: label + expiry
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS label TEXT NOT NULL DEFAULT '';
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TEXT;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS allowed_endpoints TEXT[] DEFAULT NULL;
+
+      -- Webhooks: developer-registered HTTP callbacks fired on events
+      CREATE TABLE IF NOT EXISTS webhooks (
+        id TEXT PRIMARY KEY,
+        wallet TEXT NOT NULL,
+        url TEXT NOT NULL,
+        secret TEXT NOT NULL,
+        events TEXT[] NOT NULL DEFAULT '{payment.settled,endpoint.called}',
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TEXT NOT NULL,
+        last_fired_at TEXT,
+        last_status INTEGER,
+        fire_count INTEGER NOT NULL DEFAULT 0,
+        fail_count INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS webhooks_wallet_idx ON webhooks(wallet);
+
+      -- Invoices: single-use shareable payment links
+      CREATE TABLE IF NOT EXISTS invoices (
+        id TEXT PRIMARY KEY,
+        wallet TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        amount_usdg DOUBLE PRECISION NOT NULL,
+        network TEXT NOT NULL DEFAULT 'robinhood-mainnet',
+        status TEXT NOT NULL DEFAULT 'pending',
+        paid_at TEXT,
+        payer_address TEXT,
+        tx_hash TEXT,
+        expires_at TEXT,
+        endpoint_id TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS invoices_wallet_idx ON invoices(wallet, created_at DESC);
     `).then(() => undefined);
   }
   return schemaReady;

@@ -27,10 +27,12 @@ function getVergeTier(balance: bigint | undefined): VergeTier {
   if (b >= 10_000) return { name: "Builder", fee: "0.35%", discount: "–30%", color: "text-emerald-200/70", next: { name: "Pro", required: "50,000" } };
   return { name: "Free", fee: "0.50%", discount: "", color: "text-white/40", next: { name: "Builder", required: "10,000" } };
 }
-type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "API Keys" | "Networks" | "Wallets" | "Vault" | "Reputation";
+type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Networks" | "Wallets" | "Vault" | "Reputation";
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
-type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null };
+type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null; label?: string; expiresAt?: string | null };
+type Webhook = { id: string; url: string; events: string[]; enabled: boolean; createdAt: string; lastFiredAt: string | null; lastStatus: number | null; fireCount: number; failCount: number };
+type Invoice = { id: string; description: string; amountUsdg: number; network: string; status: string; paidAt: string | null; payerAddress: string | null; txHash: string | null; expiresAt: string | null; createdAt: string };
 type Metrics = { endpoints: number; discoveryHits: number; paidCalls: number; settlementVolume: number };
 type ExtendedMetrics = { uniquePayers: number; todayEarnings: number; todayPayments: number; conversionRate: number; avgPayment: number };
 type DailyPoint = { day: string; earnings: number; payments: number };
@@ -104,6 +106,17 @@ export default function WalletDashboard() {
   const [repLeaderboard, setRepLeaderboard] = useState<ReputationEntry[]>([]);
   const [feedPreviews, setFeedPreviews] = useState<Record<string, { data?: unknown; error?: string }>>({});
   const [feedsLoading, setFeedsLoading] = useState(false);
+  const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
+  const [webhookBusy, setWebhookBusy] = useState(false);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoiceDesc, setInvoiceDesc] = useState("");
+  const [invoiceAmount, setInvoiceAmount] = useState("0.001");
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const [justInvoice, setJustInvoice] = useState<Invoice & { url?: string } | null>(null);
+  const [keyLabel, setKeyLabel] = useState("");
+  const [keyExpiry, setKeyExpiry] = useState("");
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const usdg = useReadContract({ address: USDG, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
@@ -127,6 +140,12 @@ export default function WalletDashboard() {
         } else if (active === "API Keys") {
           const data = await getData("/api/keys");
           if (!cancelled) setKeys(data.keys || []);
+        } else if (active === "Webhooks") {
+          const data = await getData("/api/webhooks");
+          if (!cancelled) setWebhooks(data.webhooks || []);
+        } else if (active === "Invoices") {
+          const data = await getData("/api/invoice");
+          if (!cancelled) setInvoices(data.invoices || []);
         } else if (active === "Wallets") {
           const data = await getData("/api/wallets");
           if (!cancelled) setAgentWallets(data.wallets || []);
@@ -162,9 +181,53 @@ export default function WalletDashboard() {
   }, [addr, authBusy, signMessageAsync]);
 
   const generateKey = useCallback(async () => {
-    try { const response = await fetch("/api/keys", { method: "POST" }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not create key"); setNewKey(data.key); const list = await getData("/api/keys"); setKeys(list.keys || []); setAuthError(""); }
-    catch (error) { setAuthError(error instanceof Error ? error.message : "Could not create key"); }
+    try {
+      const body: Record<string, string> = {};
+      if (keyLabel.trim()) body.label = keyLabel.trim();
+      if (keyExpiry) body.expiresIn = String(parseInt(keyExpiry) * 86400); // days → seconds
+      const response = await fetch("/api/keys", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not create key");
+      setNewKey(data.key);
+      setKeyLabel(""); setKeyExpiry("");
+      const list = await getData("/api/keys"); setKeys(list.keys || []); setAuthError("");
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not create key"); }
+  }, [keyLabel, keyExpiry]);
+
+  const createWebhook = useCallback(async () => {
+    if (webhookBusy || !webhookUrl.trim()) return;
+    setWebhookBusy(true); setAuthError("");
+    try {
+      const response = await fetch("/api/webhooks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: webhookUrl.trim() }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not register webhook");
+      setWebhookSecret(data.secret); setWebhookUrl("");
+      const list = await getData("/api/webhooks"); setWebhooks(list.webhooks || []);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not register webhook"); }
+    finally { setWebhookBusy(false); }
+  }, [webhookBusy, webhookUrl]);
+
+  const deleteWebhook = useCallback(async (id: string) => {
+    try {
+      const response = await fetch(`/api/webhooks?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!response.ok) { const d = await response.json(); throw new Error(d.error); }
+      setWebhooks((w) => w.filter((wh) => wh.id !== id));
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not delete webhook"); }
   }, []);
+
+  const createInvoice = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (invoiceBusy) return;
+    setInvoiceBusy(true); setAuthError(""); setJustInvoice(null);
+    try {
+      const response = await fetch("/api/invoice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ description: invoiceDesc, amount: invoiceAmount, network: "robinhood-mainnet" }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not create invoice");
+      setJustInvoice(data); setInvoiceDesc(""); setInvoiceAmount("0.001");
+      const list = await getData("/api/invoice"); setInvoices(list.invoices || []);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not create invoice"); }
+    finally { setInvoiceBusy(false); }
+  }, [invoiceBusy, invoiceDesc, invoiceAmount]);
 
   const revokeKey = useCallback(async (id: string) => {
     if (revokingId) return;
@@ -291,6 +354,40 @@ export default function WalletDashboard() {
 
   const mainContent = () => {
     if (active === "Networks") return <><PageHeading eyebrow="NETWORK REGISTRY" title="Payment rails." description="The supported rails exposed by the public Verge SDK catalog, with settlement assets and token references for each network."/><RailDirectory/></>;
+
+    if (active === "Webhooks") return <>
+      <PageHeading eyebrow="DEVELOPER CALLBACKS" title="Webhooks." description="Register HTTP endpoints to receive signed event notifications when payments settle or endpoints are called. Max 5 per wallet." action={authorized ? undefined : undefined}/>
+      {!authorized ? <TableEmpty title="Sign in to manage webhooks" description="Webhooks are scoped to your wallet." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+        {webhookSecret && <div className="mb-4 rounded-2xl border border-emerald-200/15 bg-emerald-200/[0.04] p-4"><div className="flex items-center justify-between"><span className="flex items-center gap-2 text-xs font-medium text-emerald-100"><AppIcon name="check" size={15}/>Webhook registered · copy secret now</span><button onClick={() => setWebhookSecret("")} className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-white/50 hover:border-white/20 hover:text-white">Hide</button></div><p className="mt-1 text-[10px] text-white/40">Verify incoming payloads with: <code className="text-white/60">HMAC-SHA256(secret, body) === X-Verge-Signature</code></p><code className="mt-3 block break-all rounded-xl border border-white/[0.07] bg-black/20 p-3 font-mono text-[11px] text-white/80">{webhookSecret}</code></div>}
+        <div className="mb-4 flex gap-2">
+          <input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://your-server.com/webhooks/verge" className="input-dark flex-1 !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+          <button onClick={() => void createWebhook()} disabled={webhookBusy || !webhookUrl.trim()} className="shrink-0 rounded-xl bg-emerald-200 px-4 py-2.5 text-xs font-semibold text-[#08120d] disabled:opacity-50">{webhookBusy ? "Registering…" : "Register"}</button>
+        </div>
+        {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading webhooks…</div>
+          : webhooks.length === 0 ? <TableEmpty title="No webhooks registered" description="Register a URL to receive payment.settled and endpoint.called events, signed with HMAC-SHA256."/>
+          : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>URL</span><span>Events</span><span>Fires</span><span>Status</span><span/></div><div className="divide-y divide-white/[0.05]">{webhooks.map((wh) => <div key={wh.id} className="grid gap-2 px-4 py-4 md:grid-cols-[2fr_1fr_1fr_1fr_auto] md:items-center md:px-5"><span className="truncate font-mono text-[10px] text-white/70">{wh.url}</span><span className="text-[10px] text-white/45">{wh.events.join(", ")}</span><span className="text-[10px] text-white/45">{wh.fireCount} / {wh.failCount} err</span><span className={`text-[10px] ${wh.lastStatus && wh.lastStatus >= 200 && wh.lastStatus < 300 ? "text-emerald-200/70" : wh.lastStatus ? "text-rose-200/70" : "text-white/30"}`}>{wh.lastStatus ?? "—"}</span><button onClick={() => void deleteWebhook(wh.id)} className="justify-self-start rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 transition hover:border-rose-200/25 hover:text-rose-100 md:justify-self-end">Delete</button></div>)}</div></div>}
+        <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.015] p-3 text-[10px] text-white/30">
+          Events: <code className="text-white/50">payment.settled</code> — fired on every verified USDG settlement. <code className="text-white/50">endpoint.called</code> — fired on every paid endpoint call. Both carry <code className="text-white/50">X-Verge-Signature: sha256=hex</code>.
+        </div>
+      </>}
+    </>;
+
+    if (active === "Invoices") return <>
+      <PageHeading eyebrow="PAYMENT LINKS" title="Invoices." description="Create shareable /pay/<id> links. Single-use, expiry-aware, payable by wallet or any x402 agent."/>
+      {!authorized ? <TableEmpty title="Sign in to create invoices" description="Invoices are scoped to your wallet." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+        {justInvoice && <div className="mb-4 rounded-2xl border border-emerald-200/15 bg-emerald-200/[0.04] p-4"><div className="flex items-center justify-between"><span className="flex items-center gap-2 text-xs font-medium text-emerald-100"><AppIcon name="check" size={15}/>Invoice created</span><button onClick={() => setJustInvoice(null)} className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-white/50 hover:border-white/20 hover:text-white">Hide</button></div><a href={justInvoice.url} target="_blank" rel="noreferrer" className="mt-2 block break-all font-mono text-[11px] text-emerald-200/85 hover:text-emerald-100">{justInvoice.url}</a><p className="mt-1 text-[10px] text-white/35">Share this link. Anyone with a connected wallet or an x402 agent can pay {justInvoice.amountUsdg} USDG on Robinhood Chain.</p></div>}
+        <form onSubmit={createInvoice} className="mb-4 grid gap-2 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:grid-cols-[2fr_1fr_auto] md:items-center">
+          <input value={invoiceDesc} onChange={(e) => setInvoiceDesc(e.target.value)} placeholder="Description (e.g. Design work, March)" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+          <input required type="number" min="0.000001" step="0.000001" value={invoiceAmount} onChange={(e) => setInvoiceAmount(e.target.value)} placeholder="Amount USDG" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+          <button type="submit" disabled={invoiceBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-xs font-semibold text-[#08120d] disabled:opacity-50">{invoiceBusy ? "Creating…" : "Create"}</button>
+        </form>
+        {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading invoices…</div>
+          : invoices.length === 0 ? <TableEmpty title="No invoices yet" description="Create a payment link and share it. It expires in 7 days by default."/>
+          : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[2fr_1fr_1fr_1fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Description</span><span>Amount</span><span>Status</span><span>Created</span></div><div className="divide-y divide-white/[0.05]">{invoices.map((inv) => <a key={inv.id} href={`/pay/${inv.id}`} target="_blank" rel="noreferrer" className="grid gap-2 px-4 py-4 transition hover:bg-white/[0.02] md:grid-cols-[2fr_1fr_1fr_1fr] md:items-center md:px-5"><span className="text-[11px] text-white/75">{inv.description || <span className="text-white/30 italic">No description</span>}</span><span className="font-mono text-[10px] text-white/65">{inv.amountUsdg} USDG</span><span className={`text-[10px] ${inv.status === "paid" ? "text-emerald-200/70" : inv.status === "expired" ? "text-rose-200/60" : "text-white/40"}`}>{inv.status}</span><span className="text-[10px] text-white/35">{new Date(inv.createdAt).toLocaleDateString()}</span></a>)}</div></div>}
+      </>}
+    </>;
     if (active === "Live Demo") return <><PageHeading eyebrow="LIVE · NOT SIMULATED" title="Try the real x402 flow." description="Call the real /api/demo endpoint, pay 0.001 USDG from your wallet on Robinhood Chain, and watch Verge verify the settlement onchain before unlocking."/><LiveDemo/></>;
     if (!isConnected && active === "Marketplace") return <><PageHeading eyebrow="PUBLIC DIRECTORY" title="Marketplace." description="Browse the verified endpoint directory. Connect a wallet on Robinhood Chain to publish your own listing." action={<WalletButton className="!rounded-xl !px-3 !py-2 !text-[11px]"/>}/>{activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading public listings…</div> : activityError ? <p className="text-xs text-rose-300">{activityError}</p> : listings.length === 0 ? <TableEmpty title="No verified endpoints listed yet" description="The public directory is ready for paid API endpoints." action={<a href="/api/catalog" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-200/70">Open the machine-readable catalog ↗</a>}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{listings.map((item) => <article key={item.id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><h2 className="text-sm font-medium text-white/85">{item.name}</h2><a href={item.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-[10px] text-white/35">{item.url}</a><div className="mt-4 flex justify-between border-t border-white/[0.06] pt-3 text-[10px]"><span className="text-white/40">{item.network || "robinhood-mainnet"}</span><span className="text-white/75">{Number(item.price).toFixed(6)} {item.asset || "USDG"}</span></div></article>)}</div>}</>;
     if (!isConnected && active !== "Overview") return <><PageHeading eyebrow="WALLET WORKSPACE" title={active + "."} description="Connect a wallet on Robinhood Chain to access private workspace tools."/><TableEmpty title="Connect your wallet to continue" description="Your wallet is your account. Sign one gas-free message to open private activity and developer controls." action={<WalletButton className="!rounded-xl !px-4 !py-2.5 !text-xs"/>}/></>;
@@ -476,11 +573,22 @@ export default function WalletDashboard() {
     </>;
 
     return <>
-      <PageHeading eyebrow="DEVELOPER ACCESS" title="API keys." description="Create scoped gateway credentials, monitor their request quota, and revoke keys you no longer use." action={<button onClick={() => { setNewKey(""); void generateKey(); }} disabled={!authorized} className="inline-flex items-center gap-2 rounded-xl bg-emerald-200 px-3.5 py-2.5 text-[11px] font-semibold text-[#08120d] disabled:cursor-not-allowed disabled:opacity-40"><AppIcon name="key" size={14}/> Create API key</button>}/>
+      <PageHeading eyebrow="DEVELOPER ACCESS" title="API keys." description="Create scoped gateway credentials with optional label and expiry, monitor their request quota, and revoke keys you no longer use." action={<button onClick={() => { setNewKey(""); void generateKey(); }} disabled={!authorized} className="inline-flex items-center gap-2 rounded-xl bg-emerald-200 px-3.5 py-2.5 text-[11px] font-semibold text-[#08120d] disabled:cursor-not-allowed disabled:opacity-40"><AppIcon name="key" size={14}/> Create API key</button>}/>
       {!authorized ? <TableEmpty title="Sign in to manage credentials" description="API keys are tied to your wallet and can only be viewed or revoked after wallet authorization." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button>}/> : <>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+          <input value={keyLabel} onChange={(e) => setKeyLabel(e.target.value)} placeholder="Label (optional, e.g. production-bot)" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs sm:max-w-xs"/>
+          <select value={keyExpiry} onChange={(e) => setKeyExpiry(e.target.value)} className="input-dark !rounded-xl !border-white/[0.08] !bg-[#111312] !text-xs sm:max-w-[160px]">
+            <option value="">No expiry</option>
+            <option value="7">Expires in 7 days</option>
+            <option value="30">Expires in 30 days</option>
+            <option value="90">Expires in 90 days</option>
+            <option value="365">Expires in 1 year</option>
+          </select>
+          <button onClick={() => { setNewKey(""); void generateKey(); }} disabled={!authorized} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d] disabled:opacity-40 sm:ml-auto">Create key</button>
+        </div>
         {newKey && <div className="mb-4 rounded-2xl border border-emerald-200/15 bg-emerald-200/[0.04] p-4"><div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-medium text-emerald-100"><AppIcon name="check" size={15}/>Key created · copy it now</span><button type="button" onClick={() => setNewKey("")} className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-white/50 transition hover:border-white/20 hover:text-white">Hide</button></div><p className="mt-1 text-[10px] text-white/40">The full value will not be shown again.</p><code className="mt-3 block break-all rounded-xl border border-white/[0.07] bg-black/20 p-3 font-mono text-[11px] text-white/80">{newKey}</code><div className="mt-2 text-[9px] text-white/35">Send as <code className="text-white/55">X-API-Key</code> · 1,000 requests/day</div></div>}
         {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}{activityError && <p className="mb-4 text-xs text-rose-300">{activityError}</p>}
-        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading API credentials…</div> : keys.length === 0 ? <TableEmpty title="No API keys yet" description="Create a key to authenticate applications that use Verge’s gateway. The full key appears only once." action={<button onClick={() => void generateKey()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first key</button>}/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_1fr_.7fr_.6fr_auto] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Credential</span><span>Created</span><span>Usage</span><span>Status</span><span/></div><div className="divide-y divide-white/[0.05]">{keys.map((key) => <div key={key.id} className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_1fr_.7fr_.6fr_auto] md:items-center md:px-5"><span className="font-mono text-[10px] text-white/70">vg_live_••••{key.lastFour}</span><span className="text-[10px] text-white/40">{new Date(key.createdAt).toLocaleDateString()}</span><span className="text-[10px] text-white/45">{key.usageCount || 0} / {key.quotaLimit || 1000}</span><span className={`text-[10px] ${key.revokedAt ? "text-rose-200/70" : "text-emerald-200/70"}`}>{key.revokedAt ? "Revoked" : "Active"}</span>{!key.revokedAt && <button onClick={() => void revokeKey(key.id)} disabled={revokingId === key.id} className="justify-self-start rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 transition hover:border-rose-200/25 hover:text-rose-100 disabled:cursor-not-allowed disabled:opacity-40 md:justify-self-end">{revokingId === key.id ? "Revoking…" : "Revoke"}</button>}</div>)}</div></div>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading API credentials…</div> : keys.length === 0 ? <TableEmpty title="No API keys yet" description="Create a key to authenticate applications that use Verge’s gateway. The full key appears only once." action={<button onClick={() => void generateKey()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first key</button>}/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_1fr_.6fr_.7fr_.6fr_auto] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Credential</span><span>Label</span><span>Usage</span><span>Expires</span><span>Status</span><span/></div><div className="divide-y divide-white/[0.05]">{keys.map((key) => <div key={key.id} className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_1fr_.6fr_.7fr_.6fr_auto] md:items-center md:px-5"><span className="font-mono text-[10px] text-white/70">vg_live_••••{key.lastFour}</span><span className="text-[10px] text-white/55">{key.label || <span className="text-white/25 italic">—</span>}</span><span className="text-[10px] text-white/45">{key.usageCount || 0} / {key.quotaLimit || 1000}</span><span className="text-[10px] text-white/35">{key.expiresAt ? new Date(key.expiresAt).toLocaleDateString() : "Never"}</span><span className={`text-[10px] ${key.revokedAt ? "text-rose-200/70" : key.expiresAt && key.expiresAt < new Date().toISOString() ? "text-amber-300/70" : "text-emerald-200/70"}`}>{key.revokedAt ? "Revoked" : key.expiresAt && key.expiresAt < new Date().toISOString() ? "Expired" : "Active"}</span>{!key.revokedAt && <button onClick={() => void revokeKey(key.id)} disabled={revokingId === key.id} className="justify-self-start rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 transition hover:border-rose-200/25 hover:text-rose-100 disabled:cursor-not-allowed disabled:opacity-40 md:justify-self-end">{revokingId === key.id ? "Revoking…" : "Revoke"}</button>}</div>)}</div></div>}
       </>}
     </>;
   };

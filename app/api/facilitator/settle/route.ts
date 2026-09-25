@@ -10,6 +10,7 @@ import { allowRateLimit } from "@/app/lib/db";
 import { query } from "@/app/lib/db";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 import { recordSettlement } from "@/app/lib/reputation";
+import { fireWebhooks } from "@/app/lib/webhooks";
 
 export const runtime = "nodejs";
 
@@ -48,9 +49,12 @@ export async function POST(req: NextRequest) {
     const network = networkFromCaip2(body.paymentRequirements.network);
     const decimals = network ? getRail(network).decimals : 6;
     const amountUsdg = humanAmount(result.amount ?? body.paymentRequirements.amount, decimals);
-    // Log to payments_log — recipient is the endpoint owner (paymentRequirements.recipient)
     const recipient = ((body.paymentRequirements as unknown) as Record<string, unknown>).recipient as string | undefined ?? null;
     if (recipient) void query(`INSERT INTO payments_log(wallet, payer_address, amount_usdg) VALUES ($1,$2,$3)`, [recipient, result.payer, amountUsdg]);
+    if (recipient) void fireWebhooks(recipient, "payment.settled", {
+      type: "facilitator", payer: result.payer, amount: amountUsdg,
+      network: body.paymentRequirements.network, tx: result.transaction,
+    });
     void recordSettlement(result.payer, {
       valueUsdg: amountUsdg,
       resource: "facilitator",

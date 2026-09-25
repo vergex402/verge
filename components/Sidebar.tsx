@@ -10,6 +10,7 @@ const groups = [
     { key: "Transactions", label: "Transactions", icon: "transactions" },
     { key: "Marketplace", label: "Marketplace", icon: "marketplace" },
     { key: "Receipts", label: "Receipts", icon: "receipts" },
+    { key: "Invoices", label: "Invoices", icon: "receipts" },
   ]},
   { title: "AGENTS", items: [
     { key: "Wallets", label: "Agent wallets", icon: "wallet" },
@@ -18,6 +19,7 @@ const groups = [
   ]},
   { title: "DEVELOPER", items: [
     { key: "API Keys", label: "API keys", icon: "key" },
+    { key: "Webhooks", label: "Webhooks", icon: "network" },
     { key: "Networks", label: "Payment rails", icon: "network" },
   ]},
 ] as const;

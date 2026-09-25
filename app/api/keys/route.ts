@@ -23,14 +23,20 @@ export async function GET() {
 export async function POST(_req: NextRequest) {
   const address = await owner();
   if (!address) return Response.json({ error: "Wallet session required" }, { status: 401 });
+  let body: { label?: string; expiresIn?: string } = {};
+  try { body = await _req.json().catch(() => ({})); } catch { body = {}; }
   const raw = `vg_live_${randomBytes(24).toString("base64url")}`;
   const id = `key_${randomBytes(8).toString("hex")}`;
+  const label = typeof body.label === "string" ? body.label.slice(0, 60).trim() : "";
+  const expiresAt = body.expiresIn && Number(body.expiresIn) > 0
+    ? new Date(Date.now() + Number(body.expiresIn) * 1000).toISOString()
+    : null;
   await query(
-    "INSERT INTO api_keys(id, wallet, key_hash, last_four, created_at) VALUES ($1, $2, $3, $4, $5)",
-    [id, address, createHash("sha256").update(raw).digest("hex"), raw.slice(-4), new Date().toISOString()]
+    "INSERT INTO api_keys(id, wallet, key_hash, last_four, label, expires_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [id, address, createHash("sha256").update(raw).digest("hex"), raw.slice(-4), label, expiresAt, new Date().toISOString()]
   );
-  await audit("api_key.created", address, id, { lastFour: raw.slice(-4), quotaLimit: 1000 });
-  return Response.json({ key: raw, id, warning: "Copy this key now. It will not be shown again." }, { status: 201 });
+  await audit("api_key.created", address, id, { lastFour: raw.slice(-4), quotaLimit: 1000, label, expiresAt });
+  return Response.json({ key: raw, id, label, expiresAt, warning: "Copy this key now. It will not be shown again." }, { status: 201 });
 }
 
 export async function DELETE(req: NextRequest) {

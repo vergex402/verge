@@ -8,7 +8,8 @@ export interface KeyCheckResult {
   wallet?: string;
   remaining?: number;
   limit?: number;
-  error?: "MISSING_KEY" | "INVALID_KEY" | "KEY_REVOKED" | "QUOTA_EXCEEDED";
+  expiresAt?: string | null;
+  error?: "MISSING_KEY" | "INVALID_KEY" | "KEY_REVOKED" | "QUOTA_EXCEEDED" | "KEY_EXPIRED";
 }
 
 interface KeyRow {
@@ -17,12 +18,15 @@ interface KeyRow {
   quotaLimit: number;
   usageCount: number;
   usageDate: string | null;
+  expiresAt?: string | null;
 }
 
 async function lookupKey(rawKey: string): Promise<KeyRow | undefined> {
   const hash = createHash("sha256").update(rawKey).digest("hex");
   return queryOne<KeyRow>(
-    `SELECT wallet, revoked_at as "revokedAt", quota_limit as "quotaLimit", usage_count as "usageCount", usage_date as "usageDate" FROM api_keys WHERE key_hash = $1`,
+    `SELECT wallet, revoked_at as "revokedAt", quota_limit as "quotaLimit", usage_count as "usageCount",
+      usage_date as "usageDate", expires_at as "expiresAt"
+     FROM api_keys WHERE key_hash = $1`,
     [hash]
   );
 }
@@ -33,11 +37,14 @@ export async function checkApiKey(rawKey: string | null | undefined): Promise<Ke
   const hash = createHash("sha256").update(rawKey).digest("hex");
   const today = DAILY_RESET();
 
-  // Single atomic UPDATE: reset usage_count to 0 on a new day, increment it
-  // otherwise, but only when the (possibly-reset) count is still under quota.
-  // This closes a check-then-write race where two concurrent requests could
-  // both read a pre-increment count under the limit and both be allowed
-  // through, burning more than quota_limit calls per day.
+  // Check expiry first (read-only)
+  const precheck = await lookupKey(rawKey);
+  if (!precheck) return { ok: false, error: "INVALID_KEY" };
+  if (precheck.revokedAt) return { ok: false, error: "KEY_REVOKED" };
+  if (precheck.expiresAt && precheck.expiresAt < new Date().toISOString()) {
+    return { ok: false, wallet: precheck.wallet, error: "KEY_EXPIRED", expiresAt: precheck.expiresAt };
+  }
+
   const row = await queryOne<KeyRow & { newUsageCount: number }>(
     `UPDATE api_keys
      SET usage_count = CASE WHEN usage_date = $2 THEN usage_count + 1 ELSE 1 END,
@@ -45,6 +52,7 @@ export async function checkApiKey(rawKey: string | null | undefined): Promise<Ke
          last_used_at = $3
      WHERE key_hash = $1
        AND revoked_at IS NULL
+       AND (expires_at IS NULL OR expires_at > $3)
        AND (CASE WHEN usage_date = $2 THEN usage_count ELSE 0 END) < quota_limit
      RETURNING wallet, revoked_at as "revokedAt", quota_limit as "quotaLimit", usage_count as "newUsageCount", usage_date as "usageDate"`,
     [hash, today, new Date().toISOString()]
@@ -54,10 +62,12 @@ export async function checkApiKey(rawKey: string | null | undefined): Promise<Ke
     return { ok: true, wallet: row.wallet, remaining: row.quotaLimit - row.newUsageCount, limit: row.quotaLimit };
   }
 
-  // The UPDATE matched nothing: either the key doesn't exist, is revoked, or is over quota.
   const existing = await lookupKey(rawKey);
   if (!existing) return { ok: false, error: "INVALID_KEY" };
   if (existing.revokedAt) return { ok: false, error: "KEY_REVOKED" };
+  if (existing.expiresAt && existing.expiresAt < new Date().toISOString()) {
+    return { ok: false, wallet: existing.wallet, error: "KEY_EXPIRED", expiresAt: existing.expiresAt };
+  }
   return { ok: false, wallet: existing.wallet, remaining: 0, limit: existing.quotaLimit, error: "QUOTA_EXCEEDED" };
 }
 

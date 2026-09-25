@@ -5,14 +5,13 @@ import AppIcon from "@/components/AppIcon";
 const items = [
   { key: "Overview", label: "Home", icon: "overview" },
   { key: "Live Demo", label: "Demo", icon: "flash" },
-  { key: "Data Feeds", label: "Feeds", icon: "network" },
   { key: "Transactions", label: "Activity", icon: "transactions" },
   { key: "Marketplace", label: "Market", icon: "marketplace" },
-  { key: "Receipts", label: "Receipts", icon: "receipts" },
+  { key: "Invoices", label: "Invoices", icon: "receipts" },
   { key: "Wallets", label: "Wallets", icon: "wallet" },
   { key: "Vault", label: "Vault", icon: "key" },
-  { key: "Reputation", label: "Rep", icon: "network" },
   { key: "API Keys", label: "Keys", icon: "key" },
+  { key: "Webhooks", label: "Hooks", icon: "network" },
   { key: "Networks", label: "Rails", icon: "network" },
 ] as const;
 

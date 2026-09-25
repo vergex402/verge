@@ -10,6 +10,7 @@ import { queryOne, query } from "@/app/lib/db";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
 import { HOSTED_TEMPLATES } from "@/app/lib/hosted-templates";
 import { recordSettlement } from "@/app/lib/reputation";
+import { fireWebhooks } from "@/app/lib/webhooks";
 
 function publicOrigin(req: NextRequest): string {
   const xfHost = req.headers.get("x-forwarded-host");
@@ -74,6 +75,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     await query(`UPDATE endpoints SET paid_calls_count = paid_calls_count + 1, settlement_volume = settlement_volume + $2 WHERE id = $1`, [row.id, row.priceUsdg]);
     await query(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id) VALUES ($1,$2,$3,$4)`, [row.wallet, outcome.payer || null, row.priceUsdg, row.id]);
     if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: row.priceUsdg, resource: row.hostedTemplate || row.name, txHash: outcome.tx });
+    void fireWebhooks(row.wallet, "payment.settled", {
+      type: "endpoint", endpointId: row.id, slug, name: row.name,
+      amount: row.priceUsdg, network: row.network, payer: outcome.payer, tx: outcome.tx,
+    });
+    void fireWebhooks(row.wallet, "endpoint.called", {
+      endpointId: row.id, slug, name: row.name, paid: true, payer: outcome.payer,
+    });
     return Response.json({ ok: true, endpoint: row.name, settled: true, tx, nonce, data }, { headers: { "X-Settlement-Verified": "true" } });
   } catch (error) {
     return Response.json({ error: "Upstream data source unavailable", detail: String(error instanceof Error ? error.message : error) }, { status: 502 });

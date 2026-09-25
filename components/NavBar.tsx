@@ -31,6 +31,12 @@ export default function NavBar() {
             <a href="/docs" className="text-sm font-medium text-gray-300 transition-colors hover:text-white">
               Docs
             </a>
+            <a href="/changelog" className="text-sm font-medium text-gray-300 transition-colors hover:text-white">
+              Changelog
+            </a>
+            <a href="/trust" className="text-sm font-medium text-gray-300 transition-colors hover:text-white">
+              Trust
+            </a>
             <a
               href="https://github.com/vergex402/verge"
               target="_blank"
