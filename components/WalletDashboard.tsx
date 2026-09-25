@@ -65,6 +65,17 @@ export default function WalletDashboard() {
   const { chainId } = useAppKitNetwork();
   const onRobinhood = chainId === 4663;
   const addr = address as `0x${string}` | undefined;
+  useEffect(() => {
+    const saved = window.localStorage.getItem("verge-theme");
+    if (saved === "light" || saved === "dark") setTheme(saved);
+  }, []);
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      window.localStorage.setItem("verge-theme", next);
+      return next;
+    });
+  }, []);
   const { signMessageAsync } = useSignMessage();
   const rails = useSupportedRails();
   const [active, setActive] = useState<Tab>("Overview");
@@ -91,6 +102,7 @@ export default function WalletDashboard() {
   const [templates, setTemplates] = useState<{ id: string; name: string; description: string; defaultPrice: number }[]>([]);
   const [publishBusy, setPublishBusy] = useState(false);
   const [justPublished, setJustPublished] = useState<Listing | null>(null);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [agentWallets, setAgentWallets] = useState<AgentWallet[]>([]);
   const [newWallet, setNewWallet] = useState<(AgentWallet & { privateKey: string }) | null>(null);
@@ -425,7 +437,7 @@ export default function WalletDashboard() {
   const vergeDisplay = vergeBalance == null ? "—" : `${Math.floor(Number(vergeBalance) / 1e18).toLocaleString()} $VERGE`;
   const changeActive = (key: string) => { if (key !== "API Keys") setNewKey(""); if (key !== "Wallets") { setNewWallet(null); setPkRevealed(false); setPkCopied(false); } setActive(key as Tab); };
 
-  const shellHeader = <header className="sticky top-0 z-20 flex min-h-[66px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#0d0f0e]/90 px-4 backdrop-blur-xl md:px-8"><div className="min-w-0"><div className="hidden text-[9px] font-mono tracking-[0.15em] text-white/30 md:block">VERGE <span className="px-1 text-white/15">/</span> WORKSPACE</div><div className="mt-0.5 truncate text-sm font-medium text-white/85 md:hidden">{active}</div><div className="hidden text-[11px] text-white/35 md:block">{active}</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => setPaletteOpen(true)} className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[11px] text-white/40 transition hover:border-white/15 hover:text-white/75 lg:flex"><AppIcon name="search" size={14}/>Search <kbd className="ml-5 rounded border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/30">⌘K</kbd></button><span className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[10px] text-white/50 sm:inline-flex"><span className="size-1.5 rounded-full bg-emerald-300"/>Robinhood · 4663</span><WalletButton className="!rounded-xl !px-3 !py-2 !text-[11px]"/></div></header>;
+  const shellHeader = <header className="sticky top-0 z-20 flex min-h-[66px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#0d0f0e]/90 px-4 backdrop-blur-xl md:px-8"><div className="min-w-0"><div className="hidden text-[9px] font-mono tracking-[0.15em] text-white/30 md:block">VERGE <span className="px-1 text-white/15">/</span> WORKSPACE</div><div className="mt-0.5 truncate text-sm font-medium text-white/85 md:hidden">{active}</div><div className="hidden text-[11px] text-white/35 md:block">{active}</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => setPaletteOpen(true)} className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[11px] text-white/40 transition hover:border-white/15 hover:text-white/75 lg:flex"><AppIcon name="search" size={14}/>Search <kbd className="ml-5 rounded border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/30">⌘K</kbd></button><span className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[10px] text-white/50 sm:inline-flex"><span className="size-1.5 rounded-full bg-emerald-300"/>Robinhood · 4663</span><button type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-2.5 py-2 text-[10px] text-white/50 transition hover:border-white/20 hover:text-white/80"><span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span><span className="hidden sm:inline">{theme === "dark" ? "Light" : "Dark"}</span></button><WalletButton className="!rounded-xl !px-3 !py-2 !text-[11px]"/></div></header>;
 
   const mainContent = () => {
     if (active === "Networks") return <><PageHeading eyebrow="NETWORK REGISTRY" title="Payment rails." description="The supported rails exposed by the public Verge SDK catalog, with settlement assets and token references for each network."/><RailDirectory/></>;
@@ -764,5 +776,5 @@ export default function WalletDashboard() {
     </>;
   };
 
-  return <main className="min-h-screen bg-[#0d0f0e] text-white md:flex"><Sidebar active={active} onSelect={changeActive} onOpenPalette={() => setPaletteOpen(true)} address={address}/><CommandPalette commands={commands} open={paletteOpen} onOpenChange={setPaletteOpen}/><div className="min-w-0 flex-1 pb-11"><MobileTabBar active={active} onSelect={changeActive}/>{shellHeader}<div className="mx-auto max-w-[1440px] px-4 py-6 md:px-8 md:py-8 xl:px-10">{mainContent()}</div><footer className="mx-auto max-w-[1440px] border-t border-white/[0.06] px-4 py-5 text-[9px] text-white/25 md:px-8 xl:px-10"><div className="flex flex-wrap items-center justify-between gap-2"><span>Verge Gateway · Wallet-scoped access</span><span>Network: Robinhood Chain 4663 · SDK catalog: {rails.length || "…"} rails</span></div></footer></div><Workbench/></main>;
+  return <main className={`${theme === "light" ? "theme-light" : ""} min-h-screen bg-[#0d0f0e] text-white md:flex`}><Sidebar active={active} onSelect={changeActive} onOpenPalette={() => setPaletteOpen(true)} address={address}/><CommandPalette commands={commands} open={paletteOpen} onOpenChange={setPaletteOpen}/><div className="min-w-0 flex-1 pb-11"><MobileTabBar active={active} onSelect={changeActive}/>{shellHeader}<div className="mx-auto max-w-[1440px] px-4 py-6 md:px-8 md:py-8 xl:px-10">{mainContent()}</div><footer className="mx-auto max-w-[1440px] border-t border-white/[0.06] px-4 py-5 text-[9px] text-white/25 md:px-8 xl:px-10"><div className="flex flex-wrap items-center justify-between gap-2"><span>Verge Gateway · Wallet-scoped access</span><span>Network: Robinhood Chain 4663 · SDK catalog: {rails.length || "…"} rails</span></div></footer></div><Workbench/></main>;
 }
