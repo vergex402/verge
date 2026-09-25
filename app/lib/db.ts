@@ -126,6 +126,16 @@ export function ensureSchema(): Promise<void> {
         txs JSONB NOT NULL DEFAULT '[]'::jsonb
       );
       CREATE INDEX IF NOT EXISTS reputation_rank_idx ON reputation(settled_count DESC, total_usdg DESC);
+      CREATE TABLE IF NOT EXISTS payments_log (
+        id BIGSERIAL PRIMARY KEY,
+        wallet TEXT NOT NULL,
+        payer_address TEXT,
+        amount_usdg DOUBLE PRECISION NOT NULL DEFAULT 0,
+        endpoint_id TEXT,
+        settled_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS payments_log_wallet_idx ON payments_log(wallet, settled_at DESC);
+      CREATE INDEX IF NOT EXISTS payments_log_payer_idx ON payments_log(payer_address);
     `).then(() => undefined);
   }
   return schemaReady;

@@ -13,6 +13,7 @@ import AppIcon from "@/components/AppIcon";
 import RailDirectory, { useSupportedRails } from "@/components/RailDirectory";
 import PaymentFlowMini from "@/components/PaymentFlowMini";
 import LiveDemo from "@/components/LiveDemo";
+import Workbench from "@/components/Workbench";
 
 const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as const;
 const VERGE_CA = "0xb73b18267d23087e3af1390edfeb8c4308921d59" as const;
@@ -31,6 +32,8 @@ type Activity = { hash: string; block: number; amount: number; explorer: string;
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null };
 type Metrics = { endpoints: number; discoveryHits: number; paidCalls: number; settlementVolume: number };
+type ExtendedMetrics = { uniquePayers: number; todayEarnings: number; todayPayments: number; conversionRate: number; avgPayment: number };
+type DailyPoint = { day: string; earnings: number; payments: number };
 type AgentWallet = { label: string; address: string; vaultRef: string; chainId: number; createdAt: number };
 type VaultEntry = { name: string; createdAt: number; hits: number; encLen: number };
 type ReputationEntry = { address: string; score: number; tier: string; settledCount: number; totalUsdg: number; firstSeen: number | null; lastSeen: number | null; resources: Record<string, number>; txHashes: string[] };
@@ -74,6 +77,8 @@ export default function WalletDashboard() {
   const [activityError, setActivityError] = useState("");
   const [listings, setListings] = useState<Listing[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [extended, setExtended] = useState<ExtendedMetrics | null>(null);
+  const [dailyChart, setDailyChart] = useState<DailyPoint[]>([]);
   const [listingName, setListingName] = useState("");
   const [listingUrl, setListingUrl] = useState("");
   const [listingPrice, setListingPrice] = useState("0.001");
@@ -112,7 +117,7 @@ export default function WalletDashboard() {
       try {
         if (active === "Overview") {
           const [analytics, tx, market] = await Promise.all([getData("/api/merchant/analytics"), getData("/api/transactions"), getData("/api/marketplace")]);
-          if (!cancelled) { setMetrics(analytics.metrics); setActivity(tx.transactions || []); setListings(market.endpoints || []); }
+          if (!cancelled) { setMetrics(analytics.metrics); setExtended(analytics.extended ?? null); setDailyChart(analytics.dailyChart ?? []); setActivity(tx.transactions || []); setListings(market.endpoints || []); }
         } else if (active === "Transactions" || active === "Receipts") {
           const data = await getData(active === "Receipts" ? "/api/receipts" : "/api/transactions");
           if (!cancelled) setActivity(data.transactions || []);
@@ -308,7 +313,25 @@ export default function WalletDashboard() {
       <PageHeading eyebrow="WORKSPACE OVERVIEW" title="Your gateway at a glance." description="A live view of your Robinhood wallet and registered endpoint activity." action={<button onClick={() => setActive("Marketplace")} className="inline-flex items-center gap-2 rounded-xl bg-emerald-200 px-3.5 py-2.5 text-[11px] font-semibold text-[#08120d] transition hover:bg-emerald-100"><AppIcon name="marketplace" size={14}/> Publish endpoint</button>}/>
       {!authorized && <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-amber-200/10 bg-amber-100/[0.035] p-4 md:flex-row md:items-center md:justify-between"><div><div className="text-xs font-medium text-white/80">Unlock your private workspace</div><div className="mt-1 text-[11px] text-white/40">One wallet signature, no gas. It only grants access to your wallet-scoped portal tools.</div></div><button type="button" onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d] disabled:opacity-50">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button></div>}
       {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Wallet balance" value={authorized ? usdgDisplay : "Connect to view"} detail="USDG · Robinhood Chain" icon="wallet"/><StatCard label="Paid endpoint calls" value={authorized ? String(metrics?.paidCalls ?? (activityLoading ? "…" : "0")) : "—"} detail="Across your active listings" icon="transactions"/><StatCard label="Registered endpoints" value={authorized ? String(metrics?.endpoints ?? (activityLoading ? "…" : "0")) : "—"} detail="Verified public listings" icon="marketplace"/><StatCard label="Settlement volume" value={authorized ? `${Number(metrics?.settlementVolume ?? 0).toFixed(4)} USDG` : "—"} detail="Reported by your listings" icon="receipts"/></section>
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Wallet balance" value={authorized ? usdgDisplay : "Connect to view"} detail="USDG · Robinhood Chain" icon="wallet"/><StatCard label="Paid endpoint calls" value={authorized ? String(metrics?.paidCalls ?? (activityLoading ? "…" : "0")) : "—"} detail="Across your active listings" icon="transactions"/><StatCard label="Settlement volume" value={authorized ? `${Number(metrics?.settlementVolume ?? 0).toFixed(4)} USDG` : "—"} detail="Reported by your listings" icon="receipts"/><StatCard label="Conversion rate" value={authorized ? (extended ? `${extended.conversionRate}%` : (activityLoading ? "…" : "—")) : "—"} detail="Paid requests / total requests" icon="marketplace"/></section>
+      {authorized && extended && <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="text-[10px] text-white/35">Today's earnings</div><div className="mt-2 text-xl font-medium text-emerald-200">${extended.todayEarnings.toFixed(4)}</div><div className="mt-1 text-[10px] text-white/30">{extended.todayPayments} payments</div></div>
+        <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="text-[10px] text-white/35">Unique payers</div><div className="mt-2 text-xl font-medium text-white/80">{extended.uniquePayers}</div><div className="mt-1 text-[10px] text-white/30">distinct wallet addresses</div></div>
+        <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="text-[10px] text-white/35">Avg payment</div><div className="mt-2 text-xl font-medium text-white/80">${extended.avgPayment.toFixed(4)}</div><div className="mt-1 text-[10px] text-white/30">per settled call</div></div>
+        <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="text-[10px] text-white/35">Endpoints live</div><div className="mt-2 text-xl font-medium text-white/80">{metrics?.endpoints ?? 0}</div><div className="mt-1 text-[10px] text-white/30">verified listings</div></div>
+      </section>}
+      {authorized && dailyChart.length > 0 && <section className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5">
+        <div className="mb-4 flex items-center justify-between"><div><div className="text-xs font-medium text-white/80">Earnings · last 30 days</div><div className="mt-1 text-[10px] text-white/35">Daily USDG from settled payments</div></div><span className="font-mono text-sm font-medium text-emerald-200">${dailyChart.reduce((s,d)=>s+d.earnings,0).toFixed(4)}</span></div>
+        <div className="flex h-16 items-end gap-px">
+          {dailyChart.map((d, i) => {
+            const max = Math.max(...dailyChart.map(x => x.earnings), 0.001);
+            const h = Math.max(2, (d.earnings / max) * 56);
+            const isToday = i === dailyChart.length - 1;
+            return <div key={d.day} title={`${d.day}: $${d.earnings.toFixed(4)}`} style={{ height: `${h}px`, flex: 1 }} className={`rounded-sm transition-all ${isToday ? "bg-emerald-300" : d.earnings > 0 ? "bg-emerald-300/40" : "bg-white/[0.04]"}`}/>;
+          })}
+        </div>
+        <div className="mt-2 flex justify-between text-[9px] text-white/25"><span>{dailyChart[0]?.day.slice(5)}</span><span>Today</span></div>
+      </section>}
       {isConnected && onRobinhood && <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -462,5 +485,5 @@ export default function WalletDashboard() {
     </>;
   };
 
-  return <main className="min-h-screen bg-[#0d0f0e] text-white md:flex"><Sidebar active={active} onSelect={changeActive} onOpenPalette={() => setPaletteOpen(true)} address={address}/><CommandPalette commands={commands} open={paletteOpen} onOpenChange={setPaletteOpen}/><div className="min-w-0 flex-1"><MobileTabBar active={active} onSelect={changeActive}/>{shellHeader}<div className="mx-auto max-w-[1440px] px-4 py-6 md:px-8 md:py-8 xl:px-10">{mainContent()}</div><footer className="mx-auto max-w-[1440px] border-t border-white/[0.06] px-4 py-5 text-[9px] text-white/25 md:px-8 xl:px-10"><div className="flex flex-wrap items-center justify-between gap-2"><span>Verge Gateway · Wallet-scoped access</span><span>Network: Robinhood Chain 4663 · SDK catalog: {rails.length || "…"} rails</span></div></footer></div></main>;
+  return <main className="min-h-screen bg-[#0d0f0e] text-white md:flex"><Sidebar active={active} onSelect={changeActive} onOpenPalette={() => setPaletteOpen(true)} address={address}/><CommandPalette commands={commands} open={paletteOpen} onOpenChange={setPaletteOpen}/><div className="min-w-0 flex-1 pb-11"><MobileTabBar active={active} onSelect={changeActive}/>{shellHeader}<div className="mx-auto max-w-[1440px] px-4 py-6 md:px-8 md:py-8 xl:px-10">{mainContent()}</div><footer className="mx-auto max-w-[1440px] border-t border-white/[0.06] px-4 py-5 text-[9px] text-white/25 md:px-8 xl:px-10"><div className="flex flex-wrap items-center justify-between gap-2"><span>Verge Gateway · Wallet-scoped access</span><span>Network: Robinhood Chain 4663 · SDK catalog: {rails.length || "…"} rails</span></div></footer></div><Workbench/></main>;
 }
