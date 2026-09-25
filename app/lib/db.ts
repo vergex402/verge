@@ -174,6 +174,28 @@ export function ensureSchema(): Promise<void> {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS invoices_wallet_idx ON invoices(wallet, created_at DESC);
+
+      -- Sandbox mode flag per wallet session
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS sandbox BOOLEAN NOT NULL DEFAULT FALSE;
+
+      -- Agent wallet budget engine
+      ALTER TABLE agent_wallets ADD COLUMN IF NOT EXISTS max_per_call DOUBLE PRECISION;
+      ALTER TABLE agent_wallets ADD COLUMN IF NOT EXISTS daily_budget DOUBLE PRECISION;
+      ALTER TABLE agent_wallets ADD COLUMN IF NOT EXISTS allowed_domains TEXT[];
+      ALTER TABLE agent_wallets ADD COLUMN IF NOT EXISTS spent_today DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE agent_wallets ADD COLUMN IF NOT EXISTS spend_date TEXT;
+
+      -- Agent wallet spend log
+      CREATE TABLE IF NOT EXISTS agent_wallet_spends (
+        id BIGSERIAL PRIMARY KEY,
+        wallet_address TEXT NOT NULL,
+        owner_wallet TEXT NOT NULL,
+        amount_usdg DOUBLE PRECISION NOT NULL,
+        endpoint_url TEXT,
+        tx_hash TEXT,
+        spent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS aws_wallet_idx ON agent_wallet_spends(wallet_address, spent_at DESC);
     `).then(() => undefined);
   }
   return schemaReady;

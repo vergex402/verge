@@ -99,6 +99,82 @@ async function whalePools() {
   return { kind: "whale-liquidity", chain: "robinhood-4663", provider: "geckoterminal.com", fetchedAt: new Date().toISOString(), count: pools.length, pools };
 }
 
+// ---- /gas-prices : ETH mainnet + Base gas via public JSON-RPC ----
+async function gasSnapshot() {
+  const rpc = async (url: string) => {
+    const res = await fetchJson(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "eth_gasPrice", params: [], id: 1 }),
+    }) as { result?: string };
+    const wei = parseInt(res.result || "0x0", 16);
+    const gwei = wei / 1e9;
+    return { fast_gwei: +(gwei * 1.1).toFixed(2), standard_gwei: +gwei.toFixed(2) };
+  };
+  const [eth, base] = await Promise.all([
+    rpc("https://cloudflare-eth.com"),
+    rpc("https://mainnet.base.org"),
+  ]);
+  return { eth, base, timestamp: new Date().toISOString() };
+}
+
+// ---- /robinhood-pools : top DEX pools on Robinhood Chain ----
+async function rhPoolsSnapshot() {
+  const d = await gt("/networks/robinhood/pools?page=1");
+  const pools = shapePools(d, 10).map((p) => ({
+    name: p.pool,
+    address: p.address,
+    price_usd: p.priceUsd,
+    volume_24h: p.volume24hUsd,
+    liquidity: p.liquidityUsd,
+  }));
+  if (!pools.length) throw new Error("no pools");
+  return { kind: "rh-dex-pools", chain: "robinhood-4663", provider: "geckoterminal.com", fetchedAt: new Date().toISOString(), count: pools.length, pools };
+}
+
+// ---- /fear-greed : Crypto Fear & Greed Index ----
+async function fearGreedSnapshot() {
+  const data = await fetchJson("https://api.alternative.me/fng/?limit=1") as { data?: Array<{ value: string; value_classification: string; timestamp: string }> };
+  const item = data.data?.[0];
+  if (!item) throw new Error("no fear/greed data");
+  return { value: parseInt(item.value, 10), classification: item.value_classification, timestamp: new Date(parseInt(item.timestamp, 10) * 1000).toISOString() };
+}
+
+// ---- /trending-tokens : most-traded tokens on Robinhood Chain ----
+async function trendingTokensSnapshot() {
+  const d = await gt("/networks/robinhood/trending_pools?page=1");
+  const tokens = (d?.data || []).slice(0, 8).map((p) => {
+    const a = (p.attributes || {}) as Record<string, any>;
+    return {
+      name: a.name,
+      symbol: a.base_token_symbol,
+      price_usd: a.base_token_price_usd,
+      price_change_24h: a.price_change_percentage?.h24,
+      volume_24h: a.volume_usd?.h24,
+    };
+  });
+  if (!tokens.length) throw new Error("no trending tokens");
+  return { kind: "trending-tokens", chain: "robinhood-4663", provider: "geckoterminal.com", fetchedAt: new Date().toISOString(), count: tokens.length, tokens };
+}
+
+// ---- /rh-token-prices : spot prices for USDG + WETH on Robinhood Chain ----
+async function rhTokenPricesSnapshot() {
+  const d = await fetchJson(
+    "https://api.geckoterminal.com/api/v2/networks/robinhood/tokens/multi/0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168%2C0x0Bd7E4Ae832Ed34CA43B94Bf6e2D7a58fD90AD73"
+  ) as { data?: Array<{ attributes?: Record<string, unknown> }> };
+  const tokens = (d?.data || []).map((t) => {
+    const a = (t.attributes || {}) as Record<string, any>;
+    return {
+      symbol: a.symbol,
+      name: a.name,
+      price_usd: a.price_usd,
+      price_change_24h: a.price_change_percentage?.h24,
+    };
+  });
+  if (!tokens.length) throw new Error("no token price data");
+  return { kind: "rh-token-prices", chain: "robinhood-4663", provider: "geckoterminal.com", fetchedAt: new Date().toISOString(), tokens };
+}
+
 // ---- /signals : momentum derived from trending + whale pools ----
 async function momentumSignals() {
   const [tr, wh] = await Promise.all([cached("trending", trendingPools), cached("whales", whalePools)]);
@@ -173,6 +249,41 @@ export const HOSTED_TEMPLATES: Record<string, HostedTemplate> = {
     description: "Buy/sell momentum signals derived from live Robinhood Chain pool data (price change + volume/liquidity ratio).",
     defaultPrice: 0.0015,
     fetchData: () => cached("signals", momentumSignals),
+  },
+  "gas-prices": {
+    id: "gas-prices",
+    name: "EVM gas tracker",
+    description: "Live gas prices across EVM chains from Blocknative or public RPCs",
+    defaultPrice: 0.0005,
+    fetchData: () => cached("gas-prices", gasSnapshot),
+  },
+  "robinhood-pools": {
+    id: "robinhood-pools",
+    name: "Robinhood Chain DEX pools",
+    description: "Top liquidity pools on Robinhood Chain 4663 with TVL and 24h volume",
+    defaultPrice: 0.001,
+    fetchData: () => cached("robinhood-pools", rhPoolsSnapshot),
+  },
+  "fear-greed": {
+    id: "fear-greed",
+    name: "Crypto Fear & Greed Index",
+    description: "Current crypto market sentiment from 0 (extreme fear) to 100 (extreme greed)",
+    defaultPrice: 0.0005,
+    fetchData: () => cached("fear-greed", fearGreedSnapshot),
+  },
+  "trending-tokens": {
+    id: "trending-tokens",
+    name: "Trending tokens on Robinhood Chain",
+    description: "Most-traded tokens on Robinhood Chain in the last 24h by volume",
+    defaultPrice: 0.001,
+    fetchData: () => cached("trending-tokens", trendingTokensSnapshot),
+  },
+  "rh-token-prices": {
+    id: "rh-token-prices",
+    name: "Robinhood Chain token prices",
+    description: "Spot prices for USDG, WETH, and top tokenized stocks on Robinhood Chain",
+    defaultPrice: 0.001,
+    fetchData: () => cached("rh-token-prices", rhTokenPricesSnapshot),
   },
 };
 

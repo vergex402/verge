@@ -21,6 +21,7 @@ const groups = [
     { key: "API Keys", label: "API keys", icon: "key" },
     { key: "Webhooks", label: "Webhooks", icon: "network" },
     { key: "Networks", label: "Payment rails", icon: "network" },
+    { key: "Sandbox", label: "Sandbox mode", icon: "flash" },
   ]},
 ] as const;
 

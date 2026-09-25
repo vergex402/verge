@@ -1,0 +1,51 @@
+# Verge — HTTP 402 Payment Gateway for AI Agents
+> Verge is an HTTP 402 gateway and SDK. Pay-per-request APIs on Robinhood Chain (USDG) and 6 other rails.
+
+## Gateway
+- Website: https://vergesnowy.com
+- App/Console: https://vergesnowy.com/app
+- Docs: https://vergesnowy.com/docs
+- Catalog API: https://vergesnowy.com/api/catalog
+- Changelog: https://vergesnowy.com/changelog
+- Trust: https://vergesnowy.com/trust
+
+## Protocol
+- x402 v2 compatible (PAYMENT-REQUIRED + PAYMENT-SIGNATURE headers)
+- Legacy dialect: WWW-Authenticate: x402 + X-Pay-Tx / X-Pay-Nonce
+- Facilitator: https://vergesnowy.com/api/facilitator
+  - /supported — payment kinds
+  - /verify — verify payment payload (read-only)
+  - /settle — settle on-chain and commit nonce
+
+## Payment Rails
+- robinhood-mainnet — Robinhood Chain 4663, USDG (default)
+- ethereum-mainnet — Ethereum 1, USDC
+- base-mainnet — Base 8453, USDC
+- arbitrum-mainnet — Arbitrum 42161, USDC
+- polygon-mainnet — Polygon 137, USDC
+- solana-mainnet — Solana, USDC
+- sui-mainnet — Sui, USDC
+
+## Live Endpoints (pay-per-call)
+- GET https://vergesnowy.com/api/demo — 0.001 USDG demo
+- GET https://vergesnowy.com/x/<slug> — hosted marketplace endpoints
+
+## Buyer SDK
+- npm install @vergex402/fetch — payAndFetch() wrapper
+- npm install @vergex402/express — Express middleware
+- npm install @vergex402/hono — Hono adapter
+
+## MCP Server (for Claude, ChatGPT, Cursor agents)
+- POST https://vergesnowy.com/api/mcp
+- Tools: inspect_endpoint, list_marketplace, create_invoice, get_reputation
+
+## Quick Start (agent payment)
+```typescript
+import { payAndFetch, createSignerFromKey } from '@vergex402/fetch';
+const signer = createSignerFromKey(process.env.AGENT_PRIVATE_KEY, 4663);
+const data = await payAndFetch('https://vergesnowy.com/api/demo', { signer });
+```
+
+## Marketplace
+- GET https://vergesnowy.com/api/marketplace — public endpoint directory
+- Templates: random-joke, daily-quote, crypto-price, news, alerts, whale-alerts, signals, gas-prices, fear-greed, trending-tokens, robinhood-pools, rh-token-prices

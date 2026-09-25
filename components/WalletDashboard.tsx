@@ -27,7 +27,7 @@ function getVergeTier(balance: bigint | undefined): VergeTier {
   if (b >= 10_000) return { name: "Builder", fee: "0.35%", discount: "–30%", color: "text-emerald-200/70", next: { name: "Pro", required: "50,000" } };
   return { name: "Free", fee: "0.50%", discount: "", color: "text-white/40", next: { name: "Builder", required: "10,000" } };
 }
-type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Networks" | "Wallets" | "Vault" | "Reputation";
+type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation";
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null; label?: string; expiresAt?: string | null };
@@ -36,7 +36,7 @@ type Invoice = { id: string; description: string; amountUsdg: number; network: s
 type Metrics = { endpoints: number; discoveryHits: number; paidCalls: number; settlementVolume: number };
 type ExtendedMetrics = { uniquePayers: number; todayEarnings: number; todayPayments: number; conversionRate: number; avgPayment: number };
 type DailyPoint = { day: string; earnings: number; payments: number };
-type AgentWallet = { label: string; address: string; vaultRef: string; chainId: number; createdAt: number };
+type AgentWallet = { label: string; address: string; vaultRef: string; chainId: number; createdAt: number; maxPerCall?: number | null; dailyBudget?: number | null; allowedDomains?: string[] | null; spentToday?: number };
 type VaultEntry = { name: string; createdAt: number; hits: number; encLen: number };
 type ReputationEntry = { address: string; score: number; tier: string; settledCount: number; totalUsdg: number; firstSeen: number | null; lastSeen: number | null; resources: Record<string, number>; txHashes: string[] };
 
@@ -117,13 +117,19 @@ export default function WalletDashboard() {
   const [justInvoice, setJustInvoice] = useState<Invoice & { url?: string } | null>(null);
   const [keyLabel, setKeyLabel] = useState("");
   const [keyExpiry, setKeyExpiry] = useState("");
+  const [sandboxEnabled, setSandboxEnabled] = useState(false);
+  const [sandboxBusy, setSandboxBusy] = useState(false);
+  const [editingBudgetAddress, setEditingBudgetAddress] = useState<string | null>(null);
+  const [budgetMaxPerCall, setBudgetMaxPerCall] = useState("");
+  const [budgetDailyBudget, setBudgetDailyBudget] = useState("");
+  const [budgetDomains, setBudgetDomains] = useState("");
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const usdg = useReadContract({ address: USDG, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const vergeRaw = useReadContract({ address: VERGE_CA, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Invoices" && (!authorized || !onRobinhood)) return;
+    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Invoices" && active !== "Sandbox" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
     const load = async () => {
@@ -146,6 +152,9 @@ export default function WalletDashboard() {
         } else if (active === "Invoices") {
           const data = await getData("/api/invoice");
           if (!cancelled) setInvoices(data.invoices || []);
+        } else if (active === "Sandbox") {
+          const data = await getData("/api/sandbox");
+          if (!cancelled) setSandboxEnabled(data.sandbox === true);
         } else if (active === "Wallets") {
           const data = await getData("/api/wallets");
           if (!cancelled) setAgentWallets(data.wallets || []);
@@ -214,6 +223,30 @@ export default function WalletDashboard() {
       setWebhooks((w) => w.filter((wh) => wh.id !== id));
     } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not delete webhook"); }
   }, []);
+
+  const toggleSandbox = useCallback(async (val: boolean) => {
+    setSandboxBusy(true);
+    try {
+      const res = await fetch("/api/sandbox", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sandbox: val }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSandboxEnabled(data.sandbox);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not toggle sandbox"); }
+    finally { setSandboxBusy(false); }
+  }, []);
+
+  const saveBudget = useCallback(async (walletAddress: string) => {
+    try {
+      const body: Record<string, unknown> = {};
+      if (budgetMaxPerCall) body.maxPerCall = Number(budgetMaxPerCall);
+      if (budgetDailyBudget) body.dailyBudget = Number(budgetDailyBudget);
+      if (budgetDomains.trim()) body.allowedDomains = budgetDomains.split(",").map((d) => d.trim()).filter(Boolean);
+      const res = await fetch(`/api/wallets?address=${encodeURIComponent(walletAddress)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setEditingBudgetAddress(null);
+      const list = await getData("/api/wallets"); setAgentWallets(list.wallets || []);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not save budget"); }
+  }, [budgetMaxPerCall, budgetDailyBudget, budgetDomains]);
 
   const createInvoice = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -388,6 +421,47 @@ export default function WalletDashboard() {
           : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[2fr_1fr_1fr_1fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Description</span><span>Amount</span><span>Status</span><span>Created</span></div><div className="divide-y divide-white/[0.05]">{invoices.map((inv) => <a key={inv.id} href={`/pay/${inv.id}`} target="_blank" rel="noreferrer" className="grid gap-2 px-4 py-4 transition hover:bg-white/[0.02] md:grid-cols-[2fr_1fr_1fr_1fr] md:items-center md:px-5"><span className="text-[11px] text-white/75">{inv.description || <span className="text-white/30 italic">No description</span>}</span><span className="font-mono text-[10px] text-white/65">{inv.amountUsdg} USDG</span><span className={`text-[10px] ${inv.status === "paid" ? "text-emerald-200/70" : inv.status === "expired" ? "text-rose-200/60" : "text-white/40"}`}>{inv.status}</span><span className="text-[10px] text-white/35">{new Date(inv.createdAt).toLocaleDateString()}</span></a>)}</div></div>}
       </>}
     </>;
+    if (active === "Sandbox") return <>
+      <PageHeading eyebrow="DEVELOPER TESTING" title="Sandbox mode." description="Test the full x402 flow without spending real USDG. Sandbox endpoints accept any payment proof and return simulated 200 responses."/>
+      {!authorized ? <TableEmpty title="Sign in to use sandbox" description="Sandbox mode is scoped to your wallet session." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+        <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-5 md:p-6">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <div className="text-sm font-semibold text-white/85">Sandbox mode</div>
+              <p className="mt-1 text-[11px] leading-5 text-white/40">When enabled, <code className="text-white/60">GET /api/sandbox/demo</code> accepts any X-Pay-Tx header without on-chain verification. Use to test your x402 integration end-to-end without sending real USDG.</p>
+            </div>
+            <button onClick={() => void toggleSandbox(!sandboxEnabled)} disabled={sandboxBusy}
+              className={`shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50 ${sandboxEnabled ? "bg-emerald-400" : "bg-white/10"}`}>
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${sandboxEnabled ? "translate-x-6" : "translate-x-1"}`}/>
+            </button>
+          </div>
+          {sandboxEnabled && <div className="mt-4 rounded-xl border border-emerald-200/15 bg-emerald-200/[0.04] p-3 text-[10px] text-emerald-200/80">
+            Sandbox is active. Call <code className="font-mono">GET /api/sandbox/demo</code> to get a 402, then retry with any X-Pay-Tx value to receive a simulated 200.
+          </div>}
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-5">
+          <div className="mb-4 text-xs font-medium text-white/80">Test with Workbench</div>
+          <div className="space-y-2">
+            {[
+              [`inspect https://${typeof window !== "undefined" ? window.location.host : "vergesnowy.com"}/api/sandbox/demo`, "Step 1: inspect — get the 402 challenge"],
+              [`inspect https://${typeof window !== "undefined" ? window.location.host : "vergesnowy.com"}/api/sandbox/demo (with X-Pay-Tx: 0xtest)`, "Step 2: would need the workbench custom headers support"],
+            ].map(([cmd, label]) => (
+              <div key={cmd} className="rounded-xl border border-white/[0.06] bg-black/10 p-3">
+                <div className="text-[9px] text-white/35">{label}</div>
+                <code className="mt-1 block font-mono text-[10px] text-white/55">{cmd}</code>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-[10px] text-white/30">
+            The sandbox demo endpoint is also callable from your code: send any string as X-Pay-Nonce and X-Pay-Tx headers with a valid session cookie. No on-chain tx needed.
+          </p>
+        </div>
+
+        {authError && <p className="mt-4 text-xs text-rose-300">{authError}</p>}
+      </>}
+    </>;
+
     if (active === "Live Demo") return <><PageHeading eyebrow="LIVE · NOT SIMULATED" title="Try the real x402 flow." description="Call the real /api/demo endpoint, pay 0.001 USDG from your wallet on Robinhood Chain, and watch Verge verify the settlement onchain before unlocking."/><LiveDemo/></>;
     if (!isConnected && active === "Marketplace") return <><PageHeading eyebrow="PUBLIC DIRECTORY" title="Marketplace." description="Browse the verified endpoint directory. Connect a wallet on Robinhood Chain to publish your own listing." action={<WalletButton className="!rounded-xl !px-3 !py-2 !text-[11px]"/>}/>{activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading public listings…</div> : activityError ? <p className="text-xs text-rose-300">{activityError}</p> : listings.length === 0 ? <TableEmpty title="No verified endpoints listed yet" description="The public directory is ready for paid API endpoints." action={<a href="/api/catalog" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-200/70">Open the machine-readable catalog ↗</a>}/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{listings.map((item) => <article key={item.id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><h2 className="text-sm font-medium text-white/85">{item.name}</h2><a href={item.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-[10px] text-white/35">{item.url}</a><div className="mt-4 flex justify-between border-t border-white/[0.06] pt-3 text-[10px]"><span className="text-white/40">{item.network || "robinhood-mainnet"}</span><span className="text-white/75">{Number(item.price).toFixed(6)} {item.asset || "USDG"}</span></div></article>)}</div>}</>;
     if (!isConnected && active !== "Overview") return <><PageHeading eyebrow="WALLET WORKSPACE" title={active + "."} description="Connect a wallet on Robinhood Chain to access private workspace tools."/><TableEmpty title="Connect your wallet to continue" description="Your wallet is your account. Sign one gas-free message to open private activity and developer controls." action={<WalletButton className="!rounded-xl !px-4 !py-2.5 !text-xs"/>}/></>;
@@ -546,7 +620,38 @@ export default function WalletDashboard() {
           </div>
         </div>}
         {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
-        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading agent wallets…</div> : agentWallets.length === 0 ? <TableEmpty title="No agent wallets yet" description="Generate a wallet to give an agent its own on-chain identity for paying x402 endpoints." action={<button onClick={() => void createWallet()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first agent wallet</button>}/> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_1.3fr_.9fr_.6fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Label</span><span>Address</span><span>Vault ref</span><span>Created</span></div><div className="divide-y divide-white/[0.05]">{agentWallets.map((w) => <div key={w.address} className="grid gap-2 px-4 py-4 md:grid-cols-[1fr_1.3fr_.9fr_.6fr] md:items-center md:px-5"><span className="text-[11px] text-white/75">{w.label}</span><span className="truncate font-mono text-[10px] text-white/65">{w.address}</span><span className="truncate font-mono text-[9px] text-white/35">{w.vaultRef}</span><span className="text-[10px] text-white/40">{new Date(w.createdAt).toLocaleDateString()}</span></div>)}</div></div>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading agent wallets…</div> : agentWallets.length === 0 ? <TableEmpty title="No agent wallets yet" description="Generate a wallet to give an agent its own on-chain identity for paying x402 endpoints." action={<button onClick={() => void createWallet()} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">Create your first agent wallet</button>}/> : <div className="space-y-3">{agentWallets.map((w) => <div key={w.address} className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]">
+          <div className="grid gap-2 px-4 py-4 md:grid-cols-[1fr_1.3fr_.9fr_.5fr_auto] md:items-center md:px-5">
+            <span className="text-[11px] text-white/75">{w.label}</span>
+            <span className="truncate font-mono text-[10px] text-white/65">{w.address}</span>
+            <span className="truncate font-mono text-[9px] text-white/35">{w.vaultRef}</span>
+            <span className="text-[10px] text-white/40">{new Date(w.createdAt).toLocaleDateString()}</span>
+            <button onClick={() => { setEditingBudgetAddress(editingBudgetAddress === w.address ? null : w.address); setBudgetMaxPerCall(String(w.maxPerCall ?? "")); setBudgetDailyBudget(String(w.dailyBudget ?? "")); setBudgetDomains((w.allowedDomains || []).join(", ")); }} className="rounded-lg border border-white/[0.08] px-2.5 py-1 text-[9px] text-white/50 hover:border-white/20 hover:text-white">Budget</button>
+          </div>
+          {/* Budget summary row */}
+          {(w.maxPerCall || w.dailyBudget || (w.allowedDomains && w.allowedDomains.length > 0)) && editingBudgetAddress !== w.address && (
+            <div className="flex flex-wrap gap-3 border-t border-white/[0.05] px-5 py-2.5 text-[9px] text-white/30">
+              {w.maxPerCall && <span>Max/call: <span className="text-white/55">{w.maxPerCall} USDG</span></span>}
+              {w.dailyBudget && <span>Daily: <span className="text-white/55">{w.dailyBudget} USDG</span> <span className="text-amber-300/70">(spent today: {(w.spentToday ?? 0).toFixed(6)})</span></span>}
+              {w.allowedDomains && w.allowedDomains.length > 0 && <span>Domains: <span className="text-white/55">{w.allowedDomains.join(", ")}</span></span>}
+            </div>
+          )}
+          {/* Budget edit form */}
+          {editingBudgetAddress === w.address && (
+            <div className="border-t border-white/[0.05] px-5 py-4">
+              <div className="mb-3 text-[10px] text-white/45">Budget limits (leave empty = no limit)</div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div><div className="mb-1 text-[9px] text-white/30">Max per call (USDG)</div><input value={budgetMaxPerCall} onChange={(e) => setBudgetMaxPerCall(e.target.value)} placeholder="e.g. 0.01" type="number" min="0" step="0.000001" className="input-dark w-full !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/></div>
+                <div><div className="mb-1 text-[9px] text-white/30">Daily budget (USDG)</div><input value={budgetDailyBudget} onChange={(e) => setBudgetDailyBudget(e.target.value)} placeholder="e.g. 1.00" type="number" min="0" step="0.000001" className="input-dark w-full !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/></div>
+                <div><div className="mb-1 text-[9px] text-white/30">Allowed domains (comma-separated)</div><input value={budgetDomains} onChange={(e) => setBudgetDomains(e.target.value)} placeholder="vergesnowy.com, api.example.com" className="input-dark w-full !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/></div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => void saveBudget(w.address)} className="rounded-xl bg-emerald-200 px-3.5 py-2 text-[11px] font-semibold text-[#08120d]">Save limits</button>
+                <button onClick={() => setEditingBudgetAddress(null)} className="rounded-xl border border-white/[0.08] px-3.5 py-2 text-[11px] text-white/50 hover:text-white">Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>)}</div>}
       </>}
     </>;
 
