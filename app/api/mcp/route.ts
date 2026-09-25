@@ -50,7 +50,7 @@ async function callTool(name: string, args: Record<string, unknown>, req: NextRe
 
   if (name === 'list_marketplace') {
     const limit = Number(args.limit) || 20;
-    const res = await fetch(`${base}/api/marketplace`, { headers: { 'User-Agent': 'Verge-MCP/1.0' } });
+    const res = await fetch(`${base}/api/marketplace`, { headers: { 'User-Agent': 'Verge-MCP/1.0' }, signal: AbortSignal.timeout(8000) });
     const d = await res.json();
     const eps = (d.endpoints || []).slice(0, limit);
     return { count: eps.length, endpoints: eps.map((e: Record<string, unknown>) => ({ id: e.id, name: e.name, url: e.url, price: e.price, network: e.network, paidCalls: e.paidCallsCount })) };
@@ -75,7 +75,7 @@ async function callTool(name: string, args: Record<string, unknown>, req: NextRe
   if (name === 'get_reputation') {
     const address = String(args.address || '');
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error('Invalid EVM address');
-    const res = await fetch(`${base}/api/reputation?address=${encodeURIComponent(address)}`, { headers: { 'User-Agent': 'Verge-MCP/1.0' } });
+    const res = await fetch(`${base}/api/reputation?address=${encodeURIComponent(address)}`, { headers: { 'User-Agent': 'Verge-MCP/1.0' }, signal: AbortSignal.timeout(8000) });
     const d = await res.json();
     return d;
   }

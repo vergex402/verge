@@ -27,11 +27,12 @@ function getVergeTier(balance: bigint | undefined): VergeTier {
   if (b >= 10_000) return { name: "Builder", fee: "0.35%", discount: "–30%", color: "text-emerald-200/70", next: { name: "Pro", required: "50,000" } };
   return { name: "Free", fee: "0.50%", discount: "", color: "text-white/40", next: { name: "Builder", required: "10,000" } };
 }
-type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation";
+type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation";
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null; label?: string; expiresAt?: string | null };
 type Webhook = { id: string; url: string; events: string[]; enabled: boolean; createdAt: string; lastFiredAt: string | null; lastStatus: number | null; fireCount: number; failCount: number };
+type CustomDomain = { id: string; domain: string; endpointId: string; endpointName?: string; hostedSlug?: string; status: string; verifiedAt: string | null; createdAt: string };
 type Invoice = { id: string; description: string; amountUsdg: number; network: string; status: string; paidAt: string | null; payerAddress: string | null; txHash: string | null; expiresAt: string | null; createdAt: string };
 type Metrics = { endpoints: number; discoveryHits: number; paidCalls: number; settlementVolume: number };
 type ExtendedMetrics = { uniquePayers: number; todayEarnings: number; todayPayments: number; conversionRate: number; avgPayment: number };
@@ -107,6 +108,12 @@ export default function WalletDashboard() {
   const [feedPreviews, setFeedPreviews] = useState<Record<string, { data?: unknown; error?: string }>>({});
   const [feedsLoading, setFeedsLoading] = useState(false);
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const [domains, setDomains] = useState<CustomDomain[]>([]);
+  const [domainTarget, setDomainTarget] = useState("");
+  const [domainEndpointId, setDomainEndpointId] = useState("");
+  const [domainTunnelTarget, setDomainTunnelTarget] = useState("");
+  const [domainBusy, setDomainBusy] = useState(false);
+  const [domainNotice, setDomainNotice] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [webhookBusy, setWebhookBusy] = useState(false);
@@ -129,7 +136,7 @@ export default function WalletDashboard() {
   const vergeRaw = useReadContract({ address: VERGE_CA, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Invoices" && active !== "Sandbox" && (!authorized || !onRobinhood)) return;
+    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Domains" && active !== "Invoices" && active !== "Sandbox" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
     const load = async () => {
@@ -149,6 +156,9 @@ export default function WalletDashboard() {
         } else if (active === "Webhooks") {
           const data = await getData("/api/webhooks");
           if (!cancelled) setWebhooks(data.webhooks || []);
+        } else if (active === "Domains") {
+          const [data, market] = await Promise.all([getData("/api/domains"), getData("/api/marketplace")]);
+          if (!cancelled) { setDomains(data.domains || []); setDomainTunnelTarget(data.tunnelTarget || ""); setListings(market.endpoints || []); }
         } else if (active === "Invoices") {
           const data = await getData("/api/invoice");
           if (!cancelled) setInvoices(data.invoices || []);
@@ -222,6 +232,38 @@ export default function WalletDashboard() {
       if (!response.ok) { const d = await response.json(); throw new Error(d.error); }
       setWebhooks((w) => w.filter((wh) => wh.id !== id));
     } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not delete webhook"); }
+  }, []);
+
+  const createDomain = useCallback(async () => {
+    if (domainBusy || !domainTarget.trim() || !domainEndpointId) return;
+    setDomainBusy(true); setAuthError(""); setDomainNotice("");
+    try {
+      const res = await fetch("/api/domains", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ domain: domainTarget.trim(), endpointId: domainEndpointId }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not register domain");
+      setDomainTarget(""); setDomainNotice(`${data.instructions} Available URL: ${data.endpointUrl}`);
+      const list = await getData("/api/domains"); setDomains(list.domains || []); setDomainTunnelTarget(list.tunnelTarget || domainTunnelTarget);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not register domain"); }
+    finally { setDomainBusy(false); }
+  }, [domainBusy, domainTarget, domainEndpointId, domainTunnelTarget]);
+
+  const verifyDomain = useCallback(async (id: string) => {
+    setDomainBusy(true); setAuthError("");
+    try {
+      const res = await fetch(`/api/domains?id=${encodeURIComponent(id)}`, { method: "PATCH" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "DNS verification failed");
+      const list = await getData("/api/domains"); setDomains(list.domains || []); setDomainNotice("Custom domain verified and active.");
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "DNS verification failed"); }
+    finally { setDomainBusy(false); }
+  }, []);
+
+  const deleteDomain = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/domains?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error); }
+      setDomains((current) => current.filter((d) => d.id !== id));
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Could not delete domain"); }
   }, []);
 
   const toggleSandbox = useCallback(async (val: boolean) => {
@@ -421,6 +463,30 @@ export default function WalletDashboard() {
           : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[2fr_1fr_1fr_1fr] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Description</span><span>Amount</span><span>Status</span><span>Created</span></div><div className="divide-y divide-white/[0.05]">{invoices.map((inv) => <a key={inv.id} href={`/pay/${inv.id}`} target="_blank" rel="noreferrer" className="grid gap-2 px-4 py-4 transition hover:bg-white/[0.02] md:grid-cols-[2fr_1fr_1fr_1fr] md:items-center md:px-5"><span className="text-[11px] text-white/75">{inv.description || <span className="text-white/30 italic">No description</span>}</span><span className="font-mono text-[10px] text-white/65">{inv.amountUsdg} USDG</span><span className={`text-[10px] ${inv.status === "paid" ? "text-emerald-200/70" : inv.status === "expired" ? "text-rose-200/60" : "text-white/40"}`}>{inv.status}</span><span className="text-[10px] text-white/35">{new Date(inv.createdAt).toLocaleDateString()}</span></a>)}</div></div>}
       </>}
     </>;
+    if (active === "Domains") return <>
+      <PageHeading eyebrow="HOSTED GATEWAY" title="Custom domains." description="Put your own hostname in front of a Verge-hosted paid endpoint. Add a CNAME to the Cloudflare Tunnel, verify DNS, and keep the same x402 flow."/>
+      {!authorized ? <TableEmpty title="Sign in to manage domains" description="Custom domains are scoped to your wallet." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+        <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-5">
+          <div className="mb-4 text-sm font-medium text-white/85">Connect a hostname</div>
+          <div className="grid gap-2 md:grid-cols-[1.2fr_1.4fr_auto] md:items-center">
+            <input value={domainTarget} onChange={(e) => setDomainTarget(e.target.value)} placeholder="api.yourcompany.com" className="input-dark !rounded-xl !border-white/[0.08] !bg-black/15 !text-xs"/>
+            <select value={domainEndpointId} onChange={(e) => setDomainEndpointId(e.target.value)} className="input-dark !rounded-xl !border-white/[0.08] !bg-[#111312] !text-xs">
+              <option value="">Choose hosted endpoint</option>
+              {listings.filter((e) => e.hostedSlug).map((e) => <option key={e.id} value={e.id}>{e.name} · /x/{e.hostedSlug}</option>)}
+            </select>
+            <button onClick={() => void createDomain()} disabled={domainBusy || !domainTarget.trim() || !domainEndpointId} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-xs font-semibold text-[#08120d] disabled:opacity-50">{domainBusy ? "Registering…" : "Add domain"}</button>
+          </div>
+          <div className="mt-4 rounded-xl border border-emerald-200/10 bg-emerald-200/[0.03] p-3 text-[10px] leading-5 text-white/45">
+            DNS target: <code className="font-mono text-emerald-200/80">{domainTunnelTarget || "Cloudflare Tunnel target loads after wallet sign-in"}</code><br/>
+            Create a <strong className="text-white/65">CNAME</strong> record for your subdomain. Verge verifies the exact CNAME before activating it. SSL is handled by Cloudflare.
+          </div>
+        </div>
+        {domainNotice && <div className="mb-4 rounded-xl border border-emerald-200/15 bg-emerald-200/[0.04] p-4 text-[11px] leading-5 text-emerald-100/80">{domainNotice}</div>}
+        {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
+        {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading custom domains…</div> : domains.length === 0 ? <TableEmpty title="No custom domains yet" description="Connect a subdomain to one of your hosted Verge endpoints. Your x402 URL becomes your own branded hostname."/> : <div className="space-y-3">{domains.map((d) => <div key={d.id} className="rounded-2xl border border-white/[0.07] bg-[#141616] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-mono text-sm text-white/80">{d.domain}</div><div className="mt-1 text-[10px] text-white/35">{d.endpointName || d.endpointId} · /x/{d.hostedSlug || "…"}</div></div><div className="flex items-center gap-2"><span className={`rounded-full border px-2 py-1 text-[9px] uppercase tracking-wide ${d.status === "active" ? "border-emerald-200/20 bg-emerald-200/[0.06] text-emerald-200" : "border-amber-200/15 bg-amber-200/[0.04] text-amber-200/70"}`}>{d.status}</span>{d.status !== "active" && <button onClick={() => void verifyDomain(d.id)} disabled={domainBusy} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[9px] text-white/60 hover:border-white/20 hover:text-white">Verify DNS</button>}<button onClick={() => void deleteDomain(d.id)} className="rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 hover:border-rose-200/25 hover:text-rose-100">Delete</button></div></div>{d.status === "active" && <a href={`https://${d.domain}/x/${d.hostedSlug}`} target="_blank" rel="noreferrer" className="mt-3 block break-all font-mono text-[10px] text-emerald-200/75 hover:text-emerald-100">https://{d.domain}/x/{d.hostedSlug} ↗</a>}</div>)}</div>}
+      </>}
+    </>;
+
     if (active === "Sandbox") return <>
       <PageHeading eyebrow="DEVELOPER TESTING" title="Sandbox mode." description="Test the full x402 flow without spending real USDG. Sandbox endpoints accept any payment proof and return simulated 200 responses."/>
       {!authorized ? <TableEmpty title="Sign in to use sandbox" description="Sandbox mode is scoped to your wallet session." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>

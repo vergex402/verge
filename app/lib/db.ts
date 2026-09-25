@@ -196,6 +196,20 @@ export function ensureSchema(): Promise<void> {
         spent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS aws_wallet_idx ON agent_wallet_spends(wallet_address, spent_at DESC);
+
+      -- Custom domains for hosted endpoints
+      CREATE TABLE IF NOT EXISTS custom_domains (
+        id TEXT PRIMARY KEY,
+        wallet TEXT NOT NULL,
+        domain TEXT NOT NULL UNIQUE,
+        endpoint_id TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        cf_hostname_id TEXT,
+        verified_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS custom_domains_wallet_idx ON custom_domains(wallet);
+      CREATE INDEX IF NOT EXISTS custom_domains_domain_idx ON custom_domains(domain);
     `).then(() => undefined);
   }
   return schemaReady;

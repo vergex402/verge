@@ -4,8 +4,9 @@
 
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { query, queryOne } from "@/app/lib/db";
+import { query, queryOne, allowRateLimit } from "@/app/lib/db";
 import { sessionAddress } from "@/app/lib/auth";
+import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await allowRateLimit(`sandbox-toggle:${requestIp(req)}`, 20))) return rateLimitResponse();
   const jar = await cookies();
   const token = jar.get("verge_session")?.value;
   if (!token) return Response.json({ error: "Session required" }, { status: 401 });

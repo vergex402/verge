@@ -20,6 +20,7 @@ const groups = [
   { title: "DEVELOPER", items: [
     { key: "API Keys", label: "API keys", icon: "key" },
     { key: "Webhooks", label: "Webhooks", icon: "network" },
+    { key: "Domains", label: "Custom domains", icon: "network" },
     { key: "Networks", label: "Payment rails", icon: "network" },
     { key: "Sandbox", label: "Sandbox mode", icon: "flash" },
   ]},

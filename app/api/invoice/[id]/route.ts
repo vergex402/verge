@@ -3,10 +3,11 @@
 // POST /api/invoice/[id]/settle — called by /pay/[id] after on-chain payment.
 
 import { NextRequest } from "next/server";
-import { queryOne, query } from "@/app/lib/db";
+import { queryOne, query, allowRateLimit } from "@/app/lib/db";
 import { fireWebhooks } from "@/app/lib/webhooks";
 import { evaluatePayment, extractProof, decodePaymentSignature, type PaymentNetwork } from "@vergex402/core";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
+import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 // POST: attempt to settle the invoice via x402 payment proof in headers.
 // The /pay/[id] page sends payment-signature after the wallet has signed.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await allowRateLimit(`invoice-settle:${requestIp(req)}`, 20))) return rateLimitResponse();
   const { id } = await params;
   const inv = await queryOne<InvoiceRow>(
     `SELECT id, wallet, amount_usdg as "amountUsdg", network, status, expires_at as "expiresAt"

@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createHash, randomBytes } from "node:crypto";
-import { query, queryOne, audit } from "@/app/lib/db";
+import { query, queryOne, audit, allowRateLimit } from "@/app/lib/db";
 import { sessionAddress } from "@/app/lib/auth";
+import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,8 @@ async function owner() {
   return sessionAddress(jar.get("verge_session")?.value);
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!(await allowRateLimit(`keys-list:${requestIp(req)}`, 60))) return rateLimitResponse();
   const address = await owner();
   if (!address) return Response.json({ error: "Wallet session required" }, { status: 401 });
   const keys = await query(`SELECT id, created_at as "createdAt", last_four as "lastFour", revoked_at as "revokedAt",
@@ -41,6 +43,7 @@ export async function POST(_req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await allowRateLimit(`keys-revoke:${requestIp(req)}`, 30))) return rateLimitResponse();
   const address = await owner();
   if (!address) return Response.json({ error: "Wallet session required" }, { status: 401 });
   const id = req.nextUrl.searchParams.get("id");
