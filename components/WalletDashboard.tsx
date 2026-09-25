@@ -15,7 +15,17 @@ import PaymentFlowMini from "@/components/PaymentFlowMini";
 import LiveDemo from "@/components/LiveDemo";
 
 const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as const;
+const VERGE_CA = "0xb73b18267d23087e3af1390edfeb8c4308921d59" as const;
 const erc20Abi = [{ type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
+
+type VergeTier = { name: string; fee: string; discount: string; color: string; next?: { name: string; required: string } };
+function getVergeTier(balance: bigint | undefined): VergeTier {
+  const b = balance ? Number(balance) / 1e18 : 0;
+  if (b >= 250_000) return { name: "Partner", fee: "0.00%", discount: "Zero fee", color: "text-white" };
+  if (b >= 50_000) return { name: "Pro", fee: "0.20%", discount: "–60%", color: "text-emerald-300", next: { name: "Partner", required: "250,000" } };
+  if (b >= 10_000) return { name: "Builder", fee: "0.35%", discount: "–30%", color: "text-emerald-200/70", next: { name: "Pro", required: "50,000" } };
+  return { name: "Free", fee: "0.50%", discount: "", color: "text-white/40", next: { name: "Builder", required: "10,000" } };
+}
 type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "API Keys" | "Networks" | "Wallets" | "Vault" | "Reputation";
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
@@ -92,6 +102,7 @@ export default function WalletDashboard() {
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const usdg = useReadContract({ address: USDG, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
+  const vergeRaw = useReadContract({ address: VERGE_CA, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
     if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && (!authorized || !onRobinhood)) return;
@@ -266,6 +277,9 @@ export default function WalletDashboard() {
 
   const usdgDisplay = usdg.data == null ? "—" : `${(Number(usdg.data) / 1e6).toFixed(4)} USDG`;
   const ethDisplay = eth.data ? `${Number(formatUnits(eth.data.value, eth.data.decimals)).toFixed(5)} ETH` : "—";
+  const vergeBalance = vergeRaw.data as bigint | undefined;
+  const vergeTier = getVergeTier(vergeBalance);
+  const vergeDisplay = vergeBalance == null ? "—" : `${Math.floor(Number(vergeBalance) / 1e18).toLocaleString()} $VERGE`;
   const changeActive = (key: string) => { if (key !== "API Keys") setNewKey(""); if (key !== "Wallets") { setNewWallet(null); setPkRevealed(false); setPkCopied(false); } setActive(key as Tab); };
 
   const shellHeader = <header className="sticky top-0 z-20 flex min-h-[66px] items-center justify-between gap-3 border-b border-white/[0.07] bg-[#0d0f0e]/90 px-4 backdrop-blur-xl md:px-8"><div className="min-w-0"><div className="hidden text-[9px] font-mono tracking-[0.15em] text-white/30 md:block">VERGE <span className="px-1 text-white/15">/</span> WORKSPACE</div><div className="mt-0.5 truncate text-sm font-medium text-white/85 md:hidden">{active}</div><div className="hidden text-[11px] text-white/35 md:block">{active}</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => setPaletteOpen(true)} className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[11px] text-white/40 transition hover:border-white/15 hover:text-white/75 lg:flex"><AppIcon name="search" size={14}/>Search <kbd className="ml-5 rounded border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/30">⌘K</kbd></button><span className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[10px] text-white/50 sm:inline-flex"><span className="size-1.5 rounded-full bg-emerald-300"/>Robinhood · 4663</span><WalletButton className="!rounded-xl !px-3 !py-2 !text-[11px]"/></div></header>;
@@ -295,6 +309,26 @@ export default function WalletDashboard() {
       {!authorized && <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-amber-200/10 bg-amber-100/[0.035] p-4 md:flex-row md:items-center md:justify-between"><div><div className="text-xs font-medium text-white/80">Unlock your private workspace</div><div className="mt-1 text-[11px] text-white/40">One wallet signature, no gas. It only grants access to your wallet-scoped portal tools.</div></div><button type="button" onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d] disabled:opacity-50">{authBusy ? "Waiting for signature…" : "Sign in with wallet"}</button></div>}
       {authError && <p className="mb-4 text-xs text-rose-300">{authError}</p>}
       <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Wallet balance" value={authorized ? usdgDisplay : "Connect to view"} detail="USDG · Robinhood Chain" icon="wallet"/><StatCard label="Paid endpoint calls" value={authorized ? String(metrics?.paidCalls ?? (activityLoading ? "…" : "0")) : "—"} detail="Across your active listings" icon="transactions"/><StatCard label="Registered endpoints" value={authorized ? String(metrics?.endpoints ?? (activityLoading ? "…" : "0")) : "—"} detail="Verified public listings" icon="marketplace"/><StatCard label="Settlement volume" value={authorized ? `${Number(metrics?.settlementVolume ?? 0).toFixed(4)} USDG` : "—"} detail="Reported by your listings" icon="receipts"/></section>
+      {isConnected && onRobinhood && <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-white/30">$VERGE balance</div>
+              <div className="mt-1 text-sm font-medium text-white/80">{vergeDisplay}</div>
+            </div>
+            <div className="h-8 w-px bg-white/[0.07]"/>
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-white/30">Fee tier</div>
+              <div className={`mt-1 text-sm font-semibold ${vergeTier.color}`}>{vergeTier.name} · {vergeTier.fee}</div>
+            </div>
+            {vergeTier.discount && <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-emerald-300">{vergeTier.discount}</span>}
+          </div>
+          <div className="flex items-center gap-3">
+            {vergeTier.next && <span className="text-[10px] text-white/35">Next: <span className="text-white/55">{vergeTier.next.name}</span> at {vergeTier.next.required} $VERGE</span>}
+            <a href="/verge" className="rounded-xl border border-emerald-200/20 bg-emerald-200/[0.06] px-3 py-1.5 text-[10px] font-medium text-emerald-200 transition hover:bg-emerald-200/[0.1]">View tiers →</a>
+          </div>
+        </div>
+      </div>}
       <section className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-4 md:p-5"><div className="mb-3 flex items-center justify-between"><div><div className="text-xs font-medium text-white/80">Payment protocol</div><div className="mt-1 text-[10px] text-white/35">Illustrative request lifecycle</div></div><span className="rounded-full border border-white/[0.08] px-2 py-1 font-mono text-[8px] tracking-wider text-white/35">HTTP 402</span></div><div className="overflow-x-auto"><PaymentFlowMini/></div></section>
       <div className="grid gap-4 xl:grid-cols-[1.3fr_.7fr]">
         <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-4 md:px-5"><div><div className="text-xs font-medium text-white/80">Recent settlements</div><div className="mt-1 text-[10px] text-white/35">Incoming USDG transfers to your wallet</div></div><button onClick={() => setActive("Transactions")} className="text-[10px] text-emerald-200/65 hover:text-emerald-100">View activity →</button></div>{!authorized ? <div className="p-4"><TableEmpty title="Sign in to see wallet activity" description="Your transaction history stays private to your connected wallet."/></div> : activityLoading ? <div className="p-8 text-center text-xs text-white/35">Reading recent transfer events…</div> : activityError ? <div className="p-6 text-center text-xs text-rose-300">{activityError}</div> : activity.length === 0 ? <div className="p-4"><TableEmpty title="No recent settlements" description="Confirmed USDG transfers received by this wallet will appear here."/></div> : <div className="divide-y divide-white/[0.05]">{activity.slice(0,5).map((tx) => <a key={tx.hash+tx.block} href={tx.explorer} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-white/[0.02] md:px-5"><span className="min-w-0"><span className="block truncate font-mono text-[10px] text-white/65">{tx.hash.slice(0,12)}…{tx.hash.slice(-8)}</span><span className="mt-1 block text-[9px] text-white/30">Block {tx.block} · confirmed</span></span><span className="shrink-0 text-xs font-medium text-emerald-200">+{tx.amount.toFixed(4)} USDG</span></a>)}</div>}</section>
