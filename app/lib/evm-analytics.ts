@@ -78,33 +78,49 @@ async function rpcWithFallback(
   throw lastError ?? new Error(`No RPC endpoints configured for ${chainId}`);
 }
 
-/** Scan recent USDC transfers received by `wallet` on the given EVM rail. */
+/** Scan recent USDC transfers received by `wallet` on the given EVM rail.
+ *  Public RPCs cap eth_getLogs ranges (Base ~10k, others vary), so we probe
+ *  downward from the requested window until the RPC accepts. Returns fewer
+ *  transfers than the full window on constrained RPCs — callers surface this
+ *  as the block range actually scanned rather than implying full history. */
 export async function readEvmInboundTransfers(
   chainId: string,
   wallet: string,
   blocksBack = 50_000,
-): Promise<ChainTransfer[]> {
+): Promise<{ transfers: ChainTransfer[]; scannedBlocks: number }> {
   const token = EVM_USDC[chainId];
-  if (!token) return [];
+  if (!token) return { transfers: [], scannedBlocks: 0 };
 
   const latestHex = (await rpcWithFallback(chainId, "eth_blockNumber", [])) as string;
   const latest = parseInt(latestHex, 16);
-  const fromBlock = Math.max(0, latest - blocksBack);
 
-  const logs = (await rpcWithFallback(chainId, "eth_getLogs", [
-    {
-      address: token,
-      fromBlock: `0x${fromBlock.toString(16)}`,
-      toBlock: "latest",
-      topics: [TRANSFER_TOPIC, null, padAddress(wallet)],
-    },
-  ])) as Array<{ transactionHash: string; blockNumber: string; data: string }>;
-
-  return logs.map((log) => ({
-    txHash: log.transactionHash,
-    block: parseInt(log.blockNumber, 16),
-    amount: Number(BigInt(log.data)) / 1e6, // USDC = 6 decimals on all these rails
-  }));
+  // Shrink the window on range errors; most public RPCs accept ≤10k.
+  const attempts = [blocksBack, 10_000, 2_000];
+  let lastError: unknown;
+  for (const span of attempts) {
+    const fromBlock = Math.max(0, latest - span);
+    try {
+      const logs = (await rpcWithFallback(chainId, "eth_getLogs", [
+        {
+          address: token,
+          fromBlock: `0x${fromBlock.toString(16)}`,
+          toBlock: "latest",
+          topics: [TRANSFER_TOPIC, null, padAddress(wallet)],
+        },
+      ])) as Array<{ transactionHash: string; blockNumber: string; data: string }>;
+      return {
+        transfers: logs.map((log) => ({
+          txHash: log.transactionHash,
+          block: parseInt(log.blockNumber, 16),
+          amount: Number(BigInt(log.data)) / 1e6, // USDC = 6 decimals on all these rails
+        })),
+        scannedBlocks: latest - fromBlock + 1,
+      };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError ?? new Error(`getLogs failed on ${chainId}`);
 }
 
 /** True when the rail has reachable RPC endpoints configured. */

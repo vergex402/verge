@@ -30,7 +30,7 @@ function getVergeTier(balance: bigint | undefined): VergeTier {
 type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Analytics" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation" | "Splits" | "Batch Proofs";
 type ProofBatch = { id: string; merkleRoot: string; leafCount: number; logRange: { first: string; last: string }; wallet?: string; createdAt: string };
 type ProofVerifyResult = { valid: boolean; batchId: string; settlementId: string; leaf: string; merkleRoot: string; proof: string[]; leafIndex: number } | null;
-type ChainStat = { id: string; name: string; chainId: number; asset: string; txCount: number; volume: number; avgAmount: number; status: "live" | "onchain" | "available" };
+type ChainStat = { id: string; name: string; chainId: number; asset: string; txCount: number; volume: number; avgAmount: number; status: "live" | "onchain" | "available"; scannedBlocks?: number };
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null; label?: string; expiresAt?: string | null };
@@ -819,8 +819,16 @@ export default function WalletDashboard() {
                 <button onClick={async () => {
                   setSplitsBusy(true);
                   try {
-                    await fetch(`/api/splits?id=${s.id}`, { method: "DELETE" });
+                    const r = await fetch(`/api/splits?id=${s.id}`, { method: "DELETE" });
+                    if (!r.ok) {
+                      const d = await r.json().catch(() => ({}));
+                      setSplitsError(d.error || `Delete failed (${r.status})`);
+                      return;
+                    }
                     setSplits(prev => prev.filter(x => x.id !== s.id));
+                    setSplitsError("");
+                  } catch (e) {
+                    setSplitsError(String(e));
                   } finally { setSplitsBusy(false); }
                 }} className="rounded-lg border border-white/[0.08] px-2 py-1 text-[10px] text-white/35 hover:border-red-400/30 hover:text-red-400 transition-colors">Remove</button>
               </div>)}
@@ -870,7 +878,7 @@ export default function WalletDashboard() {
                     <div><div className="text-[9px] text-white/35">Volume</div><div className="mt-1 text-sm font-medium text-emerald-200">{chain.volume.toFixed(4)} {chain.asset}</div></div>
                   </div>
                   {chain.status === "available" && <div className="mt-3 rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2 text-[9px] text-white/25">{chain.id === "solana-mainnet" || chain.id === "sui-mainnet" ? "Non-EVM reader coming soon." : "RPC unreachable right now."}</div>}
-                  {chain.status === "onchain" && <div className="mt-3 rounded-lg border border-sky-300/10 bg-sky-300/[0.02] px-3 py-2 text-[9px] text-sky-200/50">Reading real USDC transfers from this chain.</div>}
+                  {chain.status === "onchain" && <div className="mt-3 rounded-lg border border-sky-300/10 bg-sky-300/[0.02] px-3 py-2 text-[9px] text-sky-200/50">Real USDC transfers · last {chain.scannedBlocks?.toLocaleString() ?? "?"} blocks</div>}
                 </article>
               ))}
             </div>

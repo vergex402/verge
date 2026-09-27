@@ -68,6 +68,37 @@ template SettlementBatch(depth) {
     numLeavesNonZero <== 1 - nz.out;
     numLeavesNonZero * (numLeavesNonZero - 1) === 0;
 
+    // numLeaves <= WIDTH (cannot claim more leaves than the tree holds)
+    component range = LessThan(10); // 10 bits: WIDTH=8 fits easily
+    range.in[0] <== numLeaves;
+    range.in[1] <== (1 << depth) + 1;
+    range.out * (range.out - 1) === 0; // boolean
+    range.out === 1;
+
+    // Padding enforcement: every leaf index >= numLeaves must be exactly 0.
+    // This makes numLeaves binding — a prover cannot stuff data past the
+    // claimed count. Sum of "is this leaf a violation" must be zero.
+    component ltNum[1 << depth];
+    component violZero = IsZero();
+    signal violation[1 << depth];
+    signal violationSum[1 << depth + 1];
+    signal prod[1 << depth];
+    violationSum[0] <== 0;
+    for (var i = 0; i < (1 << depth); i++) {
+        // isIndexPast = 1 if i >= numLeaves
+        ltNum[i] = LessThan(10);
+        ltNum[i].in[0] <== numLeaves;   // numLeaves < i+1  <=>  i >= numLeaves
+        ltNum[i].in[1] <== i + 1;
+        // when i >= numLeaves, leaf[i] must equal 0
+        // violation = isIndexPast * leaf[i]  (nonzero if padded leaf has data)
+        prod[i] <== ltNum[i].out * leaf[i];
+        violation[i] <== prod[i];
+        violationSum[i + 1] <== violationSum[i] + violation[i];
+    }
+    // Total violation must be zero
+    violZero.in <== violationSum[(1 << depth)];
+    violZero.out === 1;
+
     component sortedRoot = SortedMerkleRoot(depth);
     for (var i = 0; i < (1 << depth); i++) {
         sortedRoot.leaf[i] <== leaf[i];

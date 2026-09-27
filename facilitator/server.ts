@@ -24,9 +24,29 @@ import {
 } from "@vergex402/core";
 import { randomBytes } from "node:crypto";
 
+// Fixed-window per-IP rate limiter for challenge issuance (single-node scope).
+const rateBuckets = new Map<string, { windowStart: number; count: number }>();
+const RATE_LIMIT = 30; // challenges per minute per IP
+function rateLimited(ip: string): boolean {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now - bucket.windowStart >= windowMs) {
+    rateBuckets.set(ip, { windowStart: now, count: 1 });
+    if (rateBuckets.size > 10_000) {
+      for (const [k, v] of rateBuckets) if (now - v.windowStart >= windowMs) rateBuckets.delete(k);
+    }
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > RATE_LIMIT;
+}
+
 const PORT = Number(process.env.FACILITATOR_PORT ?? 3399);
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const MAX_BODY_BYTES = 64 * 1024;
+const MAX_CHALLENGES = 50_000;
+const MAX_AMOUNT_USD = 10_000; // sanity cap on challenge issuance
 
 const log = (level: "info" | "warn" | "error", msg: string, extra?: Record<string, unknown>) =>
   console[level](`[${new Date().toISOString()}] ${msg}`, JSON.stringify(extra ?? {}));
@@ -79,8 +99,8 @@ app.addHook("onRequest", async (req, reply) => {
 app.get("/health", async () => ({
   ok: true,
   service: "verge-facilitator",
-  challenges: challenges.size,
-  settled: replayKeys.size,
+  // Coarse capacity indicators only — no exact internal state for attackers
+  capacity: challenges.size >= MAX_CHALLENGES ? "saturated" : "available",
   uptime: Math.floor(process.uptime()),
 }));
 
@@ -161,6 +181,13 @@ app.get("/facilitator/challenge", async (req, reply) => {
   const recipient = q.recipient ?? "";
   if (!Number.isFinite(amount) || amount <= 0 || !/^0x[0-9a-fA-F]{40}$/.test(recipient)) {
     return reply.code(400).send({ error: "Valid ?network=&recipient=0x..&amount= required" });
+  }
+  if (amount > MAX_AMOUNT_USD) {
+    return reply.code(400).send({ error: `Amount exceeds ${MAX_AMOUNT_USD} USD per challenge` });
+  }
+  const ip = (req.headers["cf-connecting-ip"] as string) || (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+  if (rateLimited(ip)) {
+    return reply.code(429).send({ error: "Too many challenges; slow down" });
   }
   const nonce = randomBytes(16).toString("hex");
   const opts = { amount, recipient, network, challengeStore, replayStore, realm: "verge-standalone" };

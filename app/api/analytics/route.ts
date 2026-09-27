@@ -51,13 +51,13 @@ export async function GET(req: NextRequest) {
     ),
   );
 
-  const evmByChain = new Map<string, { ok: boolean; transfers: { txHash: string; amount: number }[] }>();
+  const evmByChain = new Map<string, { ok: boolean; transfers: { txHash: string; amount: number }[]; scannedBlocks: number }>();
   ["base-mainnet", "ethereum-mainnet", "arbitrum-mainnet", "polygon-mainnet"].forEach((id, i) => {
     const result = evmResults[i];
     if (result.status === "fulfilled") {
-      evmByChain.set(id, { ok: true, transfers: result.value });
+      evmByChain.set(id, { ok: true, transfers: result.value.transfers, scannedBlocks: result.value.scannedBlocks });
     } else {
-      evmByChain.set(id, { ok: false, transfers: [] });
+      evmByChain.set(id, { ok: false, transfers: [], scannedBlocks: 0 });
     }
   });
 
@@ -116,6 +116,7 @@ export async function GET(req: NextRequest) {
       volume,
       avgAmount: txCount > 0 ? volume / txCount : 0,
       status: "onchain" as const,
+      scannedBlocks: evm?.scannedBlocks ?? 0,
     };
   });
 
