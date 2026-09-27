@@ -1,0 +1,28 @@
+{
+  "name": "@vergex402/ai-sdk",
+  "version": "1.0.0",
+  "description": "Vercel AI SDK v7 middleware for x402 paywalled model routes. Route any ai() call through a 402 payment gate — USDG on Robinhood Chain.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["x402", "ai-sdk", "vercel", "usdg", "micropayments", "ai-agents", "robinhood"],
+  "license": "MIT",
+  "peerDependencies": {
+    "ai": ">=4.0.0"
+  },
+  "dependencies": {
+    "@vergex402/fetch": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

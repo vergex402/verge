@@ -13,7 +13,7 @@ const rails = [
   ["sui-mainnet", "Sui", "Move", "USDC", "Explicit opt-in Move rail"],
 ];
 
-const toc = ["Overview", "Install", "Express", "Hono", "x402 flow", "Client retry", "Security", "Multichain", "Portal", "API keys", "Marketplace", "Reference"];
+const toc = ["Overview", "Install", "Express", "Hono", "AI SDK", "MCP", "Fetch", "x402 flow", "Client retry", "Security", "Multichain", "Splits", "Portal", "API keys", "Marketplace", "Reference"];
 
 function Code({ children }: { children: string }) {
   return <pre className="code-block my-4">{children}</pre>;
@@ -217,7 +217,87 @@ if (first.status === 402) {
             <p className="leading-7 ink-mid">Current app reality: the public catalog shows all supported rails; private wallet balances and transaction history in the console are Robinhood Chain-focused today.</p>
           </Section>
 
-          <Section id="portal" title="Developer portal / console">
+  
+        <Section id="ai-sdk" title="AI SDK middleware">
+          <p className="text-sm text-gray-500 mb-3 leading-relaxed">Use <code className="text-white/75 bg-white/5 px-1 rounded">@vergex402/ai-sdk</code> to wrap any Vercel AI SDK model or gate your own AI routes with per-call USDG payments.</p>
+          <Code>{`npm install @vergex402/ai-sdk @vergex402/fetch`}</Code>
+          <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wider mt-4">Client — pay to call a gated model endpoint</p>
+          <Code>{`import { wrapWith402 } from "@vergex402/ai-sdk";
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+
+const model = wrapWith402(openai("gpt-4o-mini"), {
+  endpoint: "https://your-api.com/api/ai",
+  privateKey: process.env.AGENT_KEY as \`0x\${string}\`,
+  maxAmountUsdg: 0.01,
+});
+const { text } = await generateText({ model, prompt: "Hello" });`}</Code>
+          <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wider mt-4">Server — monetize your AI route (Next.js)</p>
+          <Code>{`import { createX402Gate } from "@vergex402/ai-sdk";
+import { streamText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+const { POST: gateCheck } = createX402Gate({
+  amount: 0.001,   // USDG per call
+  recipient: "0xYOUR_WALLET",
+});
+
+export async function POST(req: Request) {
+  const gateRes = await gateCheck(req.clone());
+  if (gateRes.status === 402) return gateRes;  // sends PAYMENT-REQUIRED
+  const { messages } = await req.json();
+  return streamText({ model: openai("gpt-4o-mini"), messages }).toDataStreamResponse();
+}`}</Code>
+        </Section>
+
+        <Section id="mcp" title="MCP server">
+          <p className="text-sm text-gray-500 mb-3 leading-relaxed">Verge exposes an MCP-over-HTTP server at <code className="text-white/75 bg-white/5 px-1 rounded">/api/mcp</code> that any AI agent (Claude, Cursor, ChatGPT) can use as a tool server.</p>
+          <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wider">Add to Claude Code / Cursor</p>
+          <Code>{`# In your MCP config (claude_desktop_config.json or .cursor/mcp.json):
+{
+  "mcpServers": {
+    "verge": {
+      "url": "https://vergesnowy.com/api/mcp",
+      "transport": "http"
+    }
+  }
+}`}</Code>
+          <p className="text-sm text-gray-500 mt-4 mb-1">Available tools: <code className="text-white/75 bg-white/5 px-1 rounded text-xs">inspect_endpoint</code>, <code className="text-white/75 bg-white/5 px-1 rounded text-xs">list_marketplace</code>, <code className="text-white/75 bg-white/5 px-1 rounded text-xs">create_invoice</code>, <code className="text-white/75 bg-white/5 px-1 rounded text-xs">get_reputation</code></p>
+          <a href="/api/mcp" target="_blank" rel="noopener" className="inline-block mt-3 text-sm text-emerald-400 hover:text-emerald-300 transition-colors">Inspect tools endpoint →</a>
+        </Section>
+
+        <Section id="fetch" title="@vergex402/fetch — buyer SDK">
+          <p className="text-sm text-gray-500 mb-3 leading-relaxed">The fetch SDK is for agents or scripts that need to <em>pay</em> for x402-gated endpoints. It handles the full challenge-sign-retry loop automatically.</p>
+          <Code>{`npm install @vergex402/fetch viem`}</Code>
+          <Code>{`import { payAndFetch } from "@vergex402/fetch";
+
+const res = await payAndFetch("https://vergesnowy.com/x/crypto-price", {
+  privateKey: process.env.AGENT_KEY as \`0x\${string}\`,
+  maxAmount: 0.01,  // USDG ceiling — throws if challenge > this
+});
+const data = await res.json();`}</Code>
+        </Section>
+
+
+        <Section id="splits" title="Revenue splits">
+          <p className="text-sm text-gray-500 mb-3 leading-relaxed">Automatically distribute incoming USDG to multiple wallets. Configure splits in basis points (10,000 = 100%). Applied on every facilitator settlement.</p>
+          <Code>{`// POST /api/splits — create a split rule
+fetch("/api/splits", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    recipient: "0xCOFOUNDER_WALLET",
+    basisPoints: 2000,  // 20%
+    label: "Co-founder share",
+  }),
+});
+
+// GET /api/splits — list all splits for connected wallet
+// DELETE /api/splits?id=spl_xxx — remove a split rule`}</Code>
+          <p className="text-xs text-gray-500 mt-3">Splits are enforced server-side at settlement. Max 10 recipients per wallet, sum ≤ 10,000 bps.</p>
+        </Section>
+
+        <Section id="portal" title="Developer portal / console">
             <p className="leading-7 ink-mid">The console is the user-facing workspace. Visitors can explore payment rails and the marketplace before connecting. Wallet connection is only required for private actions.</p>
             <div className="grid gap-4 md:grid-cols-2">
               {["Overview: wallet balance, endpoint count, paid calls, settlement volume", "Transactions: confirmed incoming stablecoin transfers", "Marketplace: browse and publish paid endpoints", "Receipts: explorer-linked settlement proofs", "API Keys: create/revoke wallet-scoped credentials", "Networks: rail registry, token reference, explorer links, SDK snippets"].map((text) => <div key={text} className="rounded-xl border border-line bg-card p-4 text-sm ink-mid">{text}</div>)}

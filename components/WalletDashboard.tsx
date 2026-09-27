@@ -27,7 +27,7 @@ function getVergeTier(balance: bigint | undefined): VergeTier {
   if (b >= 10_000) return { name: "Builder", fee: "0.35%", discount: "–30%", color: "text-emerald-200/70", next: { name: "Pro", required: "50,000" } };
   return { name: "Free", fee: "0.50%", discount: "", color: "text-white/40", next: { name: "Builder", required: "10,000" } };
 }
-type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation";
+type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation" | "Splits";
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null; label?: string; expiresAt?: string | null };
@@ -138,6 +138,13 @@ export default function WalletDashboard() {
   const [keyExpiry, setKeyExpiry] = useState("");
   const [sandboxEnabled, setSandboxEnabled] = useState(false);
   const [sandboxBusy, setSandboxBusy] = useState(false);
+  type Split = { id: string; recipient: string; basis_points: number; label: string; active: boolean };
+  const [splits, setSplits] = useState<Split[]>([]);
+  const [splitsBusy, setSplitsBusy] = useState(false);
+  const [splitsError, setSplitsError] = useState("");
+  const [newSplitRecipient, setNewSplitRecipient] = useState("");
+  const [newSplitBps, setNewSplitBps] = useState("1000");
+  const [newSplitLabel, setNewSplitLabel] = useState("");
   const [editingBudgetAddress, setEditingBudgetAddress] = useState<string | null>(null);
   const [budgetMaxPerCall, setBudgetMaxPerCall] = useState("");
   const [budgetDailyBudget, setBudgetDailyBudget] = useState("");
@@ -148,7 +155,7 @@ export default function WalletDashboard() {
   const vergeRaw = useReadContract({ address: VERGE_CA, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Domains" && active !== "Invoices" && active !== "Sandbox" && (!authorized || !onRobinhood)) return;
+    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Domains" && active !== "Invoices" && active !== "Sandbox" && active !== "Splits" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
     const load = async () => {
@@ -174,6 +181,9 @@ export default function WalletDashboard() {
         } else if (active === "Invoices") {
           const data = await getData("/api/invoice");
           if (!cancelled) setInvoices(data.invoices || []);
+        } else if (active === "Splits") {
+          const data = await getData("/api/splits");
+          if (!cancelled) setSplits(data.splits || []);
         } else if (active === "Sandbox") {
           const data = await getData("/api/sandbox");
           if (!cancelled) setSandboxEnabled(data.sandbox === true);
@@ -745,6 +755,60 @@ export default function WalletDashboard() {
         {activityLoading ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading vault entries…</div> : vaultEntries.length === 0 ? <TableEmpty title="No secrets stored yet" description="Store an API key or credential once, then reference it as {{name}} in an agent's request template." /> : <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]"><div className="hidden grid-cols-[1fr_.7fr_.6fr_.6fr_auto] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid"><span>Name</span><span>Created</span><span>Uses</span><span>Size</span><span/></div><div className="divide-y divide-white/[0.05]">{vaultEntries.map((entry) => <div key={entry.name} className="grid gap-2 px-4 py-4 md:grid-cols-[1fr_.7fr_.6fr_.6fr_auto] md:items-center md:px-5"><span className="font-mono text-[11px] text-white/80">{"{{"}{entry.name}{"}}"}</span><span className="text-[10px] text-white/40">{new Date(entry.createdAt).toLocaleDateString()}</span><span className="text-[10px] text-white/45">{entry.hits}</span><span className="text-[10px] text-white/35">{entry.encLen}B</span><button onClick={() => void vaultRemove(entry.name)} disabled={vaultDeletingName === entry.name} className="justify-self-start rounded-lg border border-rose-200/10 px-2.5 py-1.5 text-[9px] text-rose-200/65 transition hover:border-rose-200/25 hover:text-rose-100 disabled:opacity-40 md:justify-self-end">{vaultDeletingName === entry.name ? "Deleting…" : "Delete"}</button></div>)}</div></div>}
       </>}
     </>;
+
+    if (active === "Splits") return <>
+      <PageHeading eyebrow="REVENUE" title="Revenue splits." description="Automatically distribute incoming USDG to co-founders, affiliates, or a DAO treasury. Rules apply on every settled payment. Basis points out of 10,000 (e.g. 2000 = 20%)."/>
+      {!authorized ? <TableEmpty title="Sign in to configure splits" description="Revenue splits are wallet-scoped and require wallet authorization." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+        {splitsError && <div className="mb-4 rounded-xl border border-red-400/20 bg-red-400/[0.06] p-3 text-xs text-red-300">{splitsError}</div>}
+        <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-5">
+          <div className="text-xs font-medium text-white/70 mb-4">Add split recipient</div>
+          <div className="grid gap-3 sm:grid-cols-[1fr_100px_1fr_auto]">
+            <input value={newSplitRecipient} onChange={e => setNewSplitRecipient(e.target.value)} placeholder="0x… recipient wallet" className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs text-white placeholder:text-white/25 focus:border-emerald-300/40 focus:outline-none"/>
+            <input value={newSplitBps} onChange={e => setNewSplitBps(e.target.value)} placeholder="bps" type="number" min={1} max={10000} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs text-white placeholder:text-white/25 focus:border-emerald-300/40 focus:outline-none"/>
+            <input value={newSplitLabel} onChange={e => setNewSplitLabel(e.target.value)} placeholder="Label (optional)" className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs text-white placeholder:text-white/25 focus:border-emerald-300/40 focus:outline-none"/>
+            <button disabled={splitsBusy || !newSplitRecipient.trim()} onClick={async () => {
+              setSplitsBusy(true); setSplitsError("");
+              try {
+                const r = await fetch("/api/splits", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ recipient: newSplitRecipient.trim(), basisPoints: parseInt(newSplitBps)||1000, label: newSplitLabel }) });
+                const d = await r.json();
+                if (!r.ok) { setSplitsError(d.error || "Failed"); return; }
+                const data = await fetch("/api/splits").then(x=>x.json());
+                setSplits(data.splits||[]);
+                setNewSplitRecipient(""); setNewSplitLabel("");
+              } catch(e){ setSplitsError(String(e)); } finally { setSplitsBusy(false); }
+            }} className="rounded-xl bg-emerald-300 px-4 py-2.5 text-[11px] font-semibold text-[#07110c] disabled:opacity-40 whitespace-nowrap">
+              {splitsBusy ? "Adding…" : "Add split"}
+            </button>
+          </div>
+          <p className="mt-2 text-[10px] text-white/30">1 bps = 0.01% · max 10,000 bps total across all splits · max 10 recipients</p>
+        </div>
+        {splits.length === 0 ? <TableEmpty title="No splits configured" description="Add a recipient above to start distributing revenue automatically."/> :
+          <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]">
+            <div className="hidden grid-cols-[1fr_80px_80px_1fr_60px] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid">
+              <span>Recipient</span><span>Basis pts</span><span>Share</span><span>Label</span><span></span>
+            </div>
+            <div className="divide-y divide-white/[0.05]">
+              {splits.map(s => <div key={s.id} className="grid gap-2 px-4 py-4 md:grid-cols-[1fr_80px_80px_1fr_60px] md:items-center md:px-5">
+                <span className="truncate font-mono text-[10px] text-white/70">{s.recipient.slice(0,10)}…{s.recipient.slice(-6)}</span>
+                <span className="font-mono text-xs text-emerald-300">{s.basis_points}</span>
+                <span className="font-mono text-xs text-white/50">{(s.basis_points/100).toFixed(2)}%</span>
+                <span className="text-[10px] text-white/40">{s.label || "—"}</span>
+                <button onClick={async () => {
+                  setSplitsBusy(true);
+                  try {
+                    await fetch(`/api/splits?id=${s.id}`, { method: "DELETE" });
+                    setSplits(prev => prev.filter(x => x.id !== s.id));
+                  } finally { setSplitsBusy(false); }
+                }} className="rounded-lg border border-white/[0.08] px-2 py-1 text-[10px] text-white/35 hover:border-red-400/30 hover:text-red-400 transition-colors">Remove</button>
+              </div>)}
+            </div>
+            <div className="border-t border-white/[0.07] px-5 py-3">
+              <span className="font-mono text-[10px] text-white/30">Total: {splits.filter(s=>s.active).reduce((a,s)=>a+s.basis_points,0)} / 10000 bps ({(splits.filter(s=>s.active).reduce((a,s)=>a+s.basis_points,0)/100).toFixed(2)}% distributed)</span>
+            </div>
+          </div>}
+      </>}
+    </>;
+
 
     if (active === "Reputation") return <>
       <PageHeading eyebrow="ON-CHAIN TRUST" title="Reputation." description="Scores derived only from settled payments through Verge's facilitator — anchored to verifiable transaction hashes, never self-reported."/>

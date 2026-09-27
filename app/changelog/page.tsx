@@ -8,6 +8,31 @@ export const metadata = {
 
 const ENTRIES = [
   {
+    date: "2026-09-27",
+    version: "0.9",
+    tag: "SHIPPED",
+    items: [
+      "@vergex402/ai-sdk — Vercel AI SDK v7 (ai >=4.0) middleware: wrapWith402() wraps any model provider, createX402Gate() monetizes any Next.js/Hono AI route with per-call USDG payments",
+      "Revenue splits — distribute incoming USDG to multiple wallets atomically by basis points (2000 bps = 20%); manage via /api/splits or the new console tab",
+      "Live settlement feed — /api/feed Server-Sent Events stream; shows real-time x402 settlements on the landing page with privacy-preserving truncated addresses",
+      "MCP server improvements — discover, verify, settle tools now surfaced in llms.txt; agent identity tracked in reputation on every MCP tool call",
+    ],
+  },
+  {
+    date: "2026-09-26",
+    version: "0.8",
+    tag: "SHIPPED",
+    items: [
+      "Custom domains — CNAME your own subdomain to the Verge tunnel; publish /x/<slug> endpoints at api.yoursite.com",
+      "Sandbox mode — test x402 integrations end-to-end without real USDG; toggle per wallet from the console",
+      "Budget engine for agent wallets — per-call max and daily budget caps enforced atomically before spending",
+      "@vergex402/fetch SDK published — payAndFetch() handles 402 challenge-sign-retry in 3 lines for buyer-side agents",
+      "/api/discover — machine-readable gateway discovery JSON; /api/mcp — MCP-over-HTTP server for Claude, Cursor, ChatGPT",
+      "llms.txt — standard crawlable context file at vergesnowy.com/llms.txt",
+      "Light theme toggle — persistent preference stored in localStorage; accessible from the workspace toolbar",
+    ],
+  },
+  {
     date: "2026-09-25",
     version: "0.7",
     tag: "SHIPPED",

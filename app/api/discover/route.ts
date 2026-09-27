@@ -5,7 +5,7 @@ export async function GET(_req: NextRequest) {
   return Response.json({
     name: 'Verge',
     description: 'HTTP 402 payment gateway for AI agents. Pay-per-request APIs on Robinhood Chain (USDG) and 6 other rails.',
-    version: '0.7',
+    version: '0.9',
     protocol: 'x402-v2',
     facilitator: `${base}/api/facilitator`,
     catalog: `${base}/api/catalog`,

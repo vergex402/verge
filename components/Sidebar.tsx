@@ -17,6 +17,9 @@ const groups = [
     { key: "Vault", label: "Credential vault", icon: "key" },
     { key: "Reputation", label: "Reputation", icon: "network" },
   ]},
+  { title: "REVENUE", items: [
+    { key: "Splits", label: "Revenue splits", icon: "network" },
+  ]},
   { title: "DEVELOPER", items: [
     { key: "API Keys", label: "API keys", icon: "key" },
     { key: "Webhooks", label: "Webhooks", icon: "network" },

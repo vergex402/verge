@@ -12,6 +12,7 @@ import ContractUpgrades from "@/components/ContractUpgrades";
 import Pricing from "@/components/Pricing";
 import WhyBase from "@/components/WhyBase";
 import ConnectCTA from "@/components/Waitlist";
+import LiveFeed from "@/components/LiveFeed";
 import Footer from "@/components/Footer";
 
 export default function Home() {
@@ -30,6 +31,7 @@ export default function Home() {
       <ContractUpgrades />
       <Pricing />
       <WhyBase />
+      <LiveFeed />
       <ConnectCTA />
       <Footer />
     </main>
