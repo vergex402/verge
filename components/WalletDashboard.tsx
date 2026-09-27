@@ -27,7 +27,9 @@ function getVergeTier(balance: bigint | undefined): VergeTier {
   if (b >= 10_000) return { name: "Builder", fee: "0.35%", discount: "–30%", color: "text-emerald-200/70", next: { name: "Pro", required: "50,000" } };
   return { name: "Free", fee: "0.50%", discount: "", color: "text-white/40", next: { name: "Builder", required: "10,000" } };
 }
-type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Analytics" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation" | "Splits";
+type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Analytics" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation" | "Splits" | "Batch Proofs";
+type ProofBatch = { id: string; merkleRoot: string; leafCount: number; logRange: { first: string; last: string }; wallet?: string; createdAt: string };
+type ProofVerifyResult = { valid: boolean; batchId: string; settlementId: string; leaf: string; merkleRoot: string; proof: string[]; leafIndex: number } | null;
 type ChainStat = { id: string; name: string; chainId: number; asset: string; txCount: number; volume: number; avgAmount: number; status: "live" | "available" };
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
@@ -146,18 +148,30 @@ export default function WalletDashboard() {
   const [newSplitRecipient, setNewSplitRecipient] = useState("");
   const [newSplitBps, setNewSplitBps] = useState("1000");
   const [newSplitLabel, setNewSplitLabel] = useState("");
+  type BatchProofRow = { id: string; merkle_root: string; leaf_count: number; first_log_id: string; last_log_id: string; created_at: string };
+  const [batchProofs, setBatchProofs] = useState<BatchProofRow[]>([]);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchNotice, setBatchNotice] = useState("");
   const [editingBudgetAddress, setEditingBudgetAddress] = useState<string | null>(null);
   const [budgetMaxPerCall, setBudgetMaxPerCall] = useState("");
   const [budgetDailyBudget, setBudgetDailyBudget] = useState("");
   const [budgetDomains, setBudgetDomains] = useState("");
   const [analyticsData, setAnalyticsData] = useState<{ chains: ChainStat[]; totalVolume: number; totalTx: number; dominantChain: string } | null>(null);
+  const [proofBatches, setProofBatches] = useState<ProofBatch[]>([]);
+  const [proofGenBusy, setProofGenBusy] = useState(false);
+  const [proofGenResult, setProofGenResult] = useState<ProofBatch | null>(null);
+  const [proofVerifyBatchId, setProofVerifyBatchId] = useState("");
+  const [proofVerifySettleId, setProofVerifySettleId] = useState("");
+  const [proofVerifyBusy, setProofVerifyBusy] = useState(false);
+  const [proofVerifyResult, setProofVerifyResult] = useState<ProofVerifyResult>(null);
+  const [proofError, setProofError] = useState("");
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const usdg = useReadContract({ address: USDG, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const vergeRaw = useReadContract({ address: VERGE_CA, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Domains" && active !== "Invoices" && active !== "Sandbox" && active !== "Splits" && active !== "Analytics" && (!authorized || !onRobinhood)) return;
+    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Domains" && active !== "Invoices" && active !== "Sandbox" && active !== "Splits" && active !== "Analytics" && active !== "Batch Proofs" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
     const load = async () => {
@@ -186,6 +200,9 @@ export default function WalletDashboard() {
         } else if (active === "Splits") {
           const data = await getData("/api/splits");
           if (!cancelled) setSplits(data.splits || []);
+        } else if (active === "Batch Proofs") {
+          const data = await getData("/api/proofs");
+          if (!cancelled) setBatchProofs(data.batches || []);
         } else if (active === "Analytics") {
           const data = await getData("/api/analytics");
           if (!cancelled) setAnalyticsData(data);
@@ -437,6 +454,7 @@ export default function WalletDashboard() {
     { id: "nav-wallets", label: "Go to Agent Wallets", hint: "Agents", action: () => setActive("Wallets") },
     { id: "nav-vault", label: "Go to Credential Vault", hint: "Agents", action: () => setActive("Vault") },
     { id: "nav-rep", label: "Go to Reputation", hint: "Agents", action: () => setActive("Reputation") },
+    { id: "nav-proofs", label: "Go to Batch Proofs", hint: "Agents", action: () => setActive("Batch Proofs") },
     { id: "nav-key", label: "Manage API keys", hint: "Developer", action: () => setActive("API Keys") },
     { id: "nav-net", label: "Explore payment rails", hint: "Developer", action: () => setActive("Networks") },
     { id: "gen-key", label: "Generate API key", hint: "Action", action: () => { setActive("API Keys"); if (authorized) void generateKey(); } },
@@ -859,6 +877,54 @@ export default function WalletDashboard() {
         </>}
       </>;
     }
+
+    if (active === "Batch Proofs") return <>
+      <PageHeading eyebrow="TAMPER-EVIDENT" title="Batch proofs." description="Generate a Merkle root over all your settlements. Anyone can verify any payment was included — cryptographically, without trusting Verge."/>
+      {!authorized ? <TableEmpty title="Sign in to use batch proofs" description="Batch proofs are wallet-scoped." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+        {batchNotice && <div className="mb-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3 text-xs text-emerald-200">{batchNotice}</div>}
+        <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="text-sm font-medium text-white/80">Generate new batch</div>
+              <p className="mt-1 text-[11px] text-white/40">Commits all new settlements since your last batch into a Merkle root. Verify any individual settlement with <code className="text-white/60">GET /api/proofs?batch=&#123;id&#125;&settle=&#123;logId&#125;</code></p>
+            </div>
+            <button onClick={async () => {
+              setBatchBusy(true); setBatchNotice("");
+              try {
+                const r = await fetch("/api/proofs", { method: "POST" });
+                const d = await r.json();
+                if (!r.ok) { setBatchNotice(d.error || "Failed"); return; }
+                setBatchNotice(`✓ Batch ${d.batchId} — Merkle root: ${d.merkleRoot.slice(0,20)}… — ${d.leafCount} settlement${d.leafCount===1?"":"s"}`);
+                const list = await fetch("/api/proofs").then(x=>x.json());
+                setBatchProofs(list.batches||[]);
+              } catch(e){ setBatchNotice(String(e)); } finally { setBatchBusy(false); }
+            }} disabled={batchBusy} className="rounded-xl bg-emerald-300 px-4 py-2.5 text-[11px] font-semibold text-[#07110c] disabled:opacity-40 shrink-0">
+              {batchBusy ? "Generating…" : "Generate batch proof"}
+            </button>
+          </div>
+        </div>
+        {activityLoading && <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading batches…</div>}
+        {!activityLoading && batchProofs.length === 0 && <TableEmpty title="No batches yet" description="Click Generate to commit your settlements into a tamper-evident Merkle root."/>}
+        {batchProofs.length > 0 && <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]">
+          <div className="hidden grid-cols-[auto_1fr_60px_60px_100px] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid">
+            <span>Batch ID</span><span>Merkle root</span><span>Leaves</span><span>Range</span><span>Created</span>
+          </div>
+          <div className="divide-y divide-white/[0.05]">
+            {batchProofs.map(b => <div key={b.id} className="grid gap-2 px-4 py-4 md:grid-cols-[auto_1fr_60px_60px_100px] md:items-center md:px-5">
+              <span className="font-mono text-[10px] text-white/60 shrink-0">{b.id}</span>
+              <span className="font-mono text-[10px] text-emerald-300/80 truncate">{b.merkle_root}</span>
+              <span className="font-mono text-xs text-white/50">{b.leaf_count}</span>
+              <span className="font-mono text-[10px] text-white/35">{b.first_log_id}–{b.last_log_id}</span>
+              <a href={`/api/proofs?batch=${b.id}`} target="_blank" rel="noopener" className="rounded-lg border border-white/[0.08] px-2 py-1 text-[10px] text-white/40 hover:text-white transition-colors text-center">Inspect ↗</a>
+            </div>)}
+          </div>
+          <div className="border-t border-white/[0.07] px-5 py-3 text-[10px] text-white/30 font-mono">
+            Verify: GET /api/proofs?batch=&#123;id&#125;&settle=&#123;logId&#125; — returns Merkle path verifiable offline
+          </div>
+        </div>}
+      </>}
+    </>;
+
 
     if (active === "Reputation") return <>
       <PageHeading eyebrow="ON-CHAIN TRUST" title="Reputation." description="Scores derived only from settled payments through Verge's facilitator — anchored to verifiable transaction hashes, never self-reported."/>

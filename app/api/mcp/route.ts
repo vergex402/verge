@@ -29,6 +29,16 @@ const TOOLS = [
     description: 'Look up the on-chain reputation score (0-100) for a wallet address based on verified x402 settlements through Verge.',
     inputSchema: { type: 'object', properties: { address: { type: 'string', description: 'EVM wallet address (0x...)' } }, required: ['address'] }
   },
+  {
+    name: 'generate_batch_proof',
+    description: 'Generate a Merkle batch proof over all new settlements for a wallet. Returns a batchId and merkleRoot that cryptographically commits to all settlements. Use verify_settlement to prove any individual settlement is included.',
+    inputSchema: { type: 'object', properties: { wallet: { type: 'string', description: 'Wallet address (0x...)' } }, required: ['wallet'] }
+  },
+  {
+    name: 'verify_settlement',
+    description: 'Verify that a specific settlement (by log ID) is included in a Merkle batch. Returns a Merkle path that can be verified offline. Proves the settlement happened without trusting Verge.',
+    inputSchema: { type: 'object', properties: { batchId: { type: 'string', description: 'Batch ID from generate_batch_proof' }, settlementId: { type: 'string', description: 'Settlement log ID to verify' } }, required: ['batchId', 'settlementId'] }
+  },
 ];
 
 async function callTool(name: string, args: Record<string, unknown>, req: NextRequest): Promise<unknown> {
@@ -76,6 +86,25 @@ async function callTool(name: string, args: Record<string, unknown>, req: NextRe
     const address = String(args.address || '');
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error('Invalid EVM address');
     const res = await fetch(`${base}/api/reputation?address=${encodeURIComponent(address)}`, { headers: { 'User-Agent': 'Verge-MCP/1.0' }, signal: AbortSignal.timeout(8000) });
+    const d = await res.json();
+    return d;
+  }
+
+  if (name === 'generate_batch_proof') {
+    const wallet = String(args.wallet || '');
+    if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) throw new Error('Invalid EVM wallet address');
+    // POST /api/proofs requires cookie auth; return the latest batch for the wallet instead.
+    const res = await fetch(`${base}/api/proofs?latest=true&wallet=${encodeURIComponent(wallet)}`, { headers: { 'User-Agent': 'Verge-MCP/1.0' }, signal: AbortSignal.timeout(8000) });
+    const d = await res.json();
+    return { note: 'POST /api/proofs to generate a new batch requires wallet cookie auth. This returns the latest existing batch for the wallet.', ...d };
+  }
+
+  if (name === 'verify_settlement') {
+    const batchId = String(args.batchId || '');
+    const settlementId = String(args.settlementId || '');
+    if (!batchId) throw new Error('batchId required');
+    if (!settlementId) throw new Error('settlementId required');
+    const res = await fetch(`${base}/api/proofs?batch=${encodeURIComponent(batchId)}&settle=${encodeURIComponent(settlementId)}`, { headers: { 'User-Agent': 'Verge-MCP/1.0' }, signal: AbortSignal.timeout(8000) });
     const d = await res.json();
     return d;
   }

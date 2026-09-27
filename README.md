@@ -331,7 +331,7 @@ CA: `0xb73b18267d23087e3af1390edfeb8c4308921d59` · [Buy on Pons](https://www.po
 - [x] Fastify adapter (`@vergex402/fastify`) — onRequest hook, Fastify v4 plugin
 - [x] Self-host binary — `Dockerfile` + `docker-compose.yml` + `scripts/setup.sh` + `docs/self-host.md`
 - [x] Multi-chain analytics dashboard — settlement volume per rail, 7-chain grid view
-- [ ] ZK batch settlement proofs (Q1 2027)
+- [x] Merkle batch settlement proofs — POST /api/proofs + verify path; upgradeable to ZK (Q1 2027)
 
 ---
 

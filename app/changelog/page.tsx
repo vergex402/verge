@@ -9,6 +9,16 @@ export const metadata = {
 const ENTRIES = [
   {
     date: "2026-09-27",
+    version: "1.1",
+    tag: "SHIPPED",
+    items: [
+      "Merkle batch settlement proofs — POST /api/proofs generates a Merkle root over all your settlements; GET /api/proofs?batch=<id>&settle=<logId> returns a verifiable Merkle path",
+      "Batch proofs tab in /app console — one-click batch generation, root viewer, verify link",
+      "Tamper-evident settlement history — any third party can verify any payment was in a batch with 5 lines of JavaScript; no trust in Verge required",
+    ],
+  },
+  {
+    date: "2026-09-27",
     version: "0.9",
     tag: "SHIPPED",
     items: [
