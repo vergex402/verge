@@ -69,7 +69,7 @@ function encodePaymentRequired(opts: X402GateOptions, nonce: string): string {
     recipient: opts.recipient,
     nonce,
     memo: opts.memo ?? 'Verge x402 AI call',
-    facilitator: DEFAULT_FACILITATOR,
+    facilitator: opts.facilitatorUrl ?? DEFAULT_FACILITATOR,
   };
   return Buffer.from(JSON.stringify(payload)).toString('base64');
 }

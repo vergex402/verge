@@ -85,6 +85,8 @@ export interface PayAndFetchOptions {
   maxRetries?: number;
   /** Fetch timeout in ms (default: 30000) */
   timeout?: number;
+  /** Maximum payment amount in atomic token units; reject larger 402 challenges before signing. */
+  maxAmountAtomic?: bigint;
   /** Called when a 402 challenge is received, before paying */
   onChallenge?: (challenge: X402Challenge) => void | Promise<void>;
   /** Called after payment transaction is confirmed, with the txHash */
@@ -268,7 +270,7 @@ export async function payAndFetch(
   opts: PayAndFetchOptions,
   requestInit?: RequestInit,
 ): Promise<Response> {
-  const { signer, maxRetries = 2, timeout = 30_000, onChallenge, onPaid } = opts;
+  const { signer, maxRetries = 2, timeout = 30_000, maxAmountAtomic, onChallenge, onPaid } = opts;
 
   const account = signer.account;
   if (!account) throw new Error('signer.account is not set — use createSignerFromKey()');
@@ -300,6 +302,9 @@ export async function payAndFetch(
       // --- x402 v2: PAYMENT-REQUIRED header ---
       if (paymentRequiredHeader) {
         const challenge = parsePaymentRequired(paymentRequiredHeader);
+        if (maxAmountAtomic !== undefined && BigInt(challenge.amount) > maxAmountAtomic) {
+          throw new Error(`Payment challenge exceeds configured cap: ${challenge.amount} atomic units > ${maxAmountAtomic}`);
+        }
         const challengeChainId = caip2ToChainId(challenge.network);
 
         if (challengeChainId !== signerChainId) {

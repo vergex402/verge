@@ -1,6 +1,6 @@
 {
   "name": "@vergex402/fetch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "x402 v2-compatible fetch wrapper for AI agents and apps. payAndFetch() handles the 402 challenge, signs, and retries automatically on Robinhood Chain.",
   "type": "module",
   "main": "./dist/index.js",

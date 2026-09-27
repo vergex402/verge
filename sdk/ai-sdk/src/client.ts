@@ -31,7 +31,8 @@ const paidNonces = new Set<string>();
  * ```
  */
 export function wrapWith402<T extends object>(model: T, options: X402MiddlewareOptions): T {
-  const { endpoint, privateKey } = options;
+  const { endpoint, privateKey, maxAmountUsdg = 0.1 } = options;
+  const maxAmountAtomic = BigInt(Math.floor(maxAmountUsdg * 1_000_000));
 
   // Proxy every method call to inject the 402 payment before execution
   return new Proxy(model, {
@@ -42,7 +43,7 @@ export function wrapWith402<T extends object>(model: T, options: X402MiddlewareO
       return async function (...args: unknown[]) {
         // Step 1 — probe endpoint, execute payment if challenged
         const { payAndFetch, createSignerFromKey } = await getPayAndFetch();
-        const payRes = await payAndFetch(endpoint, { signer: createSignerFromKey(privateKey, options.chainId) }, {
+        const payRes = await payAndFetch(endpoint, { signer: createSignerFromKey(privateKey, options.chainId), maxAmountAtomic }, {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-ai-sdk-probe': '1' },
           body: JSON.stringify({ probe: true }),
