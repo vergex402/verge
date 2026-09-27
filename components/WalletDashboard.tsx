@@ -152,6 +152,7 @@ export default function WalletDashboard() {
   const [batchProofs, setBatchProofs] = useState<BatchProofRow[]>([]);
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchNotice, setBatchNotice] = useState("");
+  const [batchError, setBatchError] = useState("");
   const [editingBudgetAddress, setEditingBudgetAddress] = useState<string | null>(null);
   const [budgetMaxPerCall, setBudgetMaxPerCall] = useState("");
   const [budgetDailyBudget, setBudgetDailyBudget] = useState("");
@@ -205,7 +206,13 @@ export default function WalletDashboard() {
           if (!cancelled) setBatchProofs(data.batches || []);
         } else if (active === "Analytics") {
           const data = await getData("/api/analytics");
-          if (!cancelled) setAnalyticsData(data);
+          if (!cancelled) {
+            if (data && typeof data.totalVolume === "number" && Array.isArray(data.chains)) {
+              setAnalyticsData(data);
+            } else {
+              setActivityError(data?.error || "Unexpected analytics response");
+            }
+          }
         } else if (active === "Sandbox") {
           const data = await getData("/api/sandbox");
           if (!cancelled) setSandboxEnabled(data.sandbox === true);
@@ -782,6 +789,7 @@ export default function WalletDashboard() {
     if (active === "Splits") return <>
       <PageHeading eyebrow="REVENUE" title="Revenue splits." description="Automatically distribute incoming USDG to co-founders, affiliates, or a DAO treasury. Rules apply on every settled payment. Basis points out of 10,000 (e.g. 2000 = 20%)."/>
       {!authorized ? <TableEmpty title="Sign in to configure splits" description="Revenue splits are wallet-scoped and require wallet authorization." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+        {activityError && <div className="mb-4 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-xs text-rose-300">{activityError}</div>}
         {splitsError && <div className="mb-4 rounded-xl border border-red-400/20 bg-red-400/[0.06] p-3 text-xs text-red-300">{splitsError}</div>}
         <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-5">
           <div className="text-xs font-medium text-white/70 mb-4">Add split recipient</div>
@@ -792,7 +800,7 @@ export default function WalletDashboard() {
             <button disabled={splitsBusy || !newSplitRecipient.trim()} onClick={async () => {
               setSplitsBusy(true); setSplitsError("");
               try {
-                const r = await fetch("/api/splits", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ recipient: newSplitRecipient.trim(), basisPoints: parseInt(newSplitBps)||1000, label: newSplitLabel }) });
+                const r = await fetch("/api/splits", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ recipient: newSplitRecipient.trim(), basisPoints: (() => { const b = parseInt(newSplitBps); if (!Number.isFinite(b) || b < 1 || b > 10000) throw new Error("Basis points must be 1-10000"); return b; })(), label: newSplitLabel }) });
                 const d = await r.json();
                 if (!r.ok) { setSplitsError(d.error || "Failed"); return; }
                 const data = await fetch("/api/splits").then(x=>x.json());
@@ -819,7 +827,7 @@ export default function WalletDashboard() {
                 <button onClick={async () => {
                   setSplitsBusy(true);
                   try {
-                    const r = await fetch(`/api/splits?id=${s.id}`, { method: "DELETE" });
+                    const r = await fetch(`/api/splits?id=${encodeURIComponent(s.id)}`, { method: "DELETE" });
                     if (!r.ok) {
                       const d = await r.json().catch(() => ({}));
                       setSplitsError(d.error || `Delete failed (${r.status})`);
@@ -854,6 +862,7 @@ export default function WalletDashboard() {
       return <>
         <PageHeading eyebrow="MULTI-CHAIN" title="Analytics." description="Settlement volume and activity across all 7 payment rails. Robinhood Chain is live; other rails show availability status." />
         {!authorized ? <TableEmpty title="Sign in to view analytics" description="Chain analytics are scoped to your wallet session." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+          {activityError && <div className="mb-4 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-xs text-rose-300">{activityError}</div>}
           {activityLoading && !analyticsData ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading chain analytics…</div> : <>
             {analyticsData && <section className="mb-5 grid gap-3 sm:grid-cols-3">
               <StatCard label="Total Volume" value={`${analyticsData.totalVolume.toFixed(4)} USDG`} detail="Across all payment rails" icon="receipts"/>
@@ -890,6 +899,8 @@ export default function WalletDashboard() {
     if (active === "Batch Proofs") return <>
       <PageHeading eyebrow="TAMPER-EVIDENT" title="Batch proofs." description="Generate a Merkle root over all your settlements. Anyone can verify any payment was included — cryptographically, without trusting Verge."/>
       {!authorized ? <TableEmpty title="Sign in to use batch proofs" description="Batch proofs are wallet-scoped." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+        {activityError && <div className="mb-4 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-xs text-rose-300">{activityError}</div>}
+        {batchError && <div className="mb-4 rounded-xl border border-red-400/20 bg-red-400/[0.06] p-3 text-xs text-red-300">{batchError}</div>}
         {batchNotice && <div className="mb-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3 text-xs text-emerald-200">{batchNotice}</div>}
         <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#141616] p-5">
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -898,15 +909,15 @@ export default function WalletDashboard() {
               <p className="mt-1 text-[11px] text-white/40">Commits all new settlements since your last batch into a Merkle root. Verify any individual settlement with <code className="text-white/60">GET /api/proofs?batch=&#123;id&#125;&settle=&#123;logId&#125;</code></p>
             </div>
             <button onClick={async () => {
-              setBatchBusy(true); setBatchNotice("");
+              setBatchBusy(true); setBatchNotice(""); setBatchError("");
               try {
                 const r = await fetch("/api/proofs", { method: "POST" });
                 const d = await r.json();
-                if (!r.ok) { setBatchNotice(d.error || "Failed"); return; }
+                if (!r.ok) { setBatchError(d.error || "Failed (" + r.status + ")"); return; }
                 setBatchNotice(`✓ Batch ${d.batchId} — Merkle root: ${d.merkleRoot.slice(0,20)}… — ${d.leafCount} settlement${d.leafCount===1?"":"s"}`);
                 const list = await fetch("/api/proofs").then(x=>x.json());
                 setBatchProofs(list.batches||[]);
-              } catch(e){ setBatchNotice(String(e)); } finally { setBatchBusy(false); }
+              } catch(e){ setBatchError(String(e)); } finally { setBatchBusy(false); }
             }} disabled={batchBusy} className="rounded-xl bg-emerald-300 px-4 py-2.5 text-[11px] font-semibold text-[#07110c] disabled:opacity-40 shrink-0">
               {batchBusy ? "Generating…" : "Generate batch proof"}
             </button>
