@@ -30,7 +30,7 @@ function getVergeTier(balance: bigint | undefined): VergeTier {
 type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Analytics" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation" | "Splits" | "Batch Proofs";
 type ProofBatch = { id: string; merkleRoot: string; leafCount: number; logRange: { first: string; last: string }; wallet?: string; createdAt: string };
 type ProofVerifyResult = { valid: boolean; batchId: string; settlementId: string; leaf: string; merkleRoot: string; proof: string[]; leafIndex: number } | null;
-type ChainStat = { id: string; name: string; chainId: number; asset: string; txCount: number; volume: number; avgAmount: number; status: "live" | "available" };
+type ChainStat = { id: string; name: string; chainId: number; asset: string; txCount: number; volume: number; avgAmount: number; status: "live" | "onchain" | "available" };
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null; label?: string; expiresAt?: string | null };
@@ -863,13 +863,14 @@ export default function WalletDashboard() {
                         <span className="inline-block mt-0.5 rounded-md border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] text-white/50">{chain.asset}</span>
                       </div>
                     </div>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wide ${chain.status === "live" ? "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-300" : "border-white/[0.08] bg-white/[0.02] text-white/30"}`}>{chain.status}</span>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wide ${chain.status === "live" ? "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-300" : chain.status === "onchain" ? "border-sky-300/25 bg-sky-300/[0.08] text-sky-300" : "border-white/[0.08] bg-white/[0.02] text-white/30"}`}>{chain.status}</span>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
                     <div><div className="text-[9px] text-white/35">Settlements</div><div className="mt-1 text-sm font-medium text-white/80">{chain.txCount}</div></div>
                     <div><div className="text-[9px] text-white/35">Volume</div><div className="mt-1 text-sm font-medium text-emerald-200">{chain.volume.toFixed(4)} {chain.asset}</div></div>
                   </div>
-                  {chain.status === "available" && <div className="mt-3 rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2 text-[9px] text-white/25">Multi-chain settlement coming soon.</div>}
+                  {chain.status === "available" && <div className="mt-3 rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2 text-[9px] text-white/25">{chain.id === "solana-mainnet" || chain.id === "sui-mainnet" ? "Non-EVM reader coming soon." : "RPC unreachable right now."}</div>}
+                  {chain.status === "onchain" && <div className="mt-3 rounded-lg border border-sky-300/10 bg-sky-300/[0.02] px-3 py-2 text-[9px] text-sky-200/50">Reading real USDC transfers from this chain.</div>}
                 </article>
               ))}
             </div>
