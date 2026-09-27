@@ -5,7 +5,7 @@
 import { NextRequest } from 'next/server';
 import { allowRateLimit } from '@/app/lib/db';
 import { sessionAddress } from '@/app/lib/auth';
-import { assertPublicHttpUrl, hasOversizedBody, rateLimitResponse, requestIp } from '@/app/lib/request-security';
+import { assertPublicHttpUrl, fetchPublicHttpUrl, hasOversizedBody, rateLimitResponse, requestIp } from '@/app/lib/request-security';
 
 export const runtime = 'nodejs';
 
@@ -49,7 +49,7 @@ async function callTool(name: string, args: Record<string, unknown>, req: NextRe
     const rawUrl = String(args.url || '');
     if (!rawUrl) throw new Error('url required');
     const url = await assertPublicHttpUrl(rawUrl);
-    const res = await fetch(url, { method: 'GET', headers: { 'User-Agent': 'Verge-MCP/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(8000) });
+    const res = await fetchPublicHttpUrl(url, { method: 'GET', headers: { 'User-Agent': 'Verge-MCP/1.0' }, signal: AbortSignal.timeout(8000) });
     const headers: Record<string, string> = {};
     res.headers.forEach((v, k) => { headers[k] = v; });
     const paymentRequired = res.headers.get('payment-required');

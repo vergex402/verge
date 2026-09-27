@@ -5,7 +5,7 @@
 
 import { NextRequest } from "next/server";
 import { allowRateLimit } from "@/app/lib/db";
-import { assertPublicHttpUrl, hasOversizedBody, rateLimitResponse, requestIp } from "@/app/lib/request-security";
+import { assertPublicHttpUrl, fetchPublicHttpUrl, hasOversizedBody, rateLimitResponse, requestIp, type PublicHttpUrl } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,7 @@ function fmt(obj: unknown, indent = 2): string {
 
 async function inspectUrl(rawUrl: string): Promise<WorkbenchResult> {
   // Validate URL
-  let url: URL;
+  let url: PublicHttpUrl;
   try {
     url = await assertPublicHttpUrl(rawUrl);
   } catch (error) {
@@ -35,7 +35,7 @@ async function inspectUrl(rawUrl: string): Promise<WorkbenchResult> {
   const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetchPublicHttpUrl(url, {
       method: "GET",
       headers: { "User-Agent": "Verge-Workbench/1.0" },
       signal: controller.signal,

@@ -30,9 +30,12 @@ interface ReputationRow {
 }
 
 /** Records a settled payment against the payer's reputation. Call this right after a successful settle. */
-export async function recordSettlement(payer: string, opts: { valueUsdg?: number; resource?: string; txHash?: string } = {}): Promise<void> {
+export async function recordSettlement(payer: string, opts: { valueUsdg?: number; resource?: string; txHash?: string; recipient?: string } = {}): Promise<void> {
   if (!payer || !/^0x[0-9a-fA-F]{40}$/.test(payer)) return;
   const address = payer.toLowerCase();
+  // A payer can control both ends of a transfer; do not turn self-payments
+  // into reputation.
+  if (opts.recipient?.toLowerCase() === address) return;
   const now = Date.now();
 
   const existing = await queryOne<ReputationRow>(`SELECT * FROM reputation WHERE address = $1`, [address]);

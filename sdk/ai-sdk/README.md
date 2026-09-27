@@ -66,6 +66,14 @@ app.post("/api/ai/chat", async (c) => {
 });
 ```
 
+## Production stores
+
+The default replay and challenge stores are in-memory and **only safe for development or a single worker**. For multi-worker production, pass durable `ChallengeStore` and `ReplayStore` implementations compatible with `@vergex402/core`. When the supplied replay store implements `AtomicReplayStore`, the gate uses its atomic `claim()` operation to prevent concurrent replay races.
+
+```ts
+createX402Gate({ amount: 0.001, recipient: "0xYOUR_WALLET", challengeStore, replayStore });
+```
+
 ## Protocol
 
 - Uses **x402 v2** wire format (`PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` headers)

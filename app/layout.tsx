@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "./providers";
 
+// Nonce CSP requires request-time rendering so Next can attach the nonce to scripts.
+export const dynamic = "force-dynamic";
+
 // metadataBase points at the live deployment so OG image URLs resolve.
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://vergesnowy.com";

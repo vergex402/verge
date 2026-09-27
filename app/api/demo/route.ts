@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     case "error":
       return Response.json({ error: "Payment verifier unavailable", code: "TX_RPC_ERROR", detail: outcome.detail }, { status: 503 });
     case "unlocked":
-      if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: PRICE_USDG, resource: "demo", txHash: outcome.tx });
+      if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: PRICE_USDG, resource: "demo", txHash: outcome.tx, recipient: process.env.DEMO_MERCHANT_WALLET });
       return Response.json({
         ok: true,
         network: NETWORK,

@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
       valueUsdg: amountUsdg,
       resource: "facilitator",
       txHash: result.transaction,
+      recipient: recipient || undefined,
     });
   }
   return Response.json(result);

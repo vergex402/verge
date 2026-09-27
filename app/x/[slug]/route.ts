@@ -74,7 +74,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     const data = await template.fetchData();
     await query(`UPDATE endpoints SET paid_calls_count = paid_calls_count + 1, settlement_volume = settlement_volume + $2 WHERE id = $1`, [row.id, row.priceUsdg]);
     await query(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id) VALUES ($1,$2,$3,$4)`, [row.wallet, outcome.payer || null, row.priceUsdg, row.id]);
-    if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: row.priceUsdg, resource: row.hostedTemplate || row.name, txHash: outcome.tx });
+    if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: row.priceUsdg, resource: row.hostedTemplate || row.name, txHash: outcome.tx, recipient: row.wallet });
     void fireWebhooks(row.wallet, "payment.settled", {
       type: "endpoint", endpointId: row.id, slug, name: row.name,
       amount: row.priceUsdg, network: row.network, payer: outcome.payer, tx: outcome.tx,

@@ -10,8 +10,7 @@ import type { X402MiddlewareOptions } from './types.js';
 // ── Lazy import of @vergex402/fetch (peer dep) ──────────────────────────────
 async function getPayAndFetch() {
   // Dynamic import so tree-shaking works in Node runtimes that don't need it
-  const m = await import('@vergex402/fetch');
-  return m.payAndFetch;
+  return import('@vergex402/fetch');
 }
 
 // ── Internal nonce cache — don't pay twice in the same process tick ─────────
@@ -32,7 +31,7 @@ const paidNonces = new Set<string>();
  * ```
  */
 export function wrapWith402<T extends object>(model: T, options: X402MiddlewareOptions): T {
-  const { endpoint, privateKey, maxAmountUsdg = 0.1 } = options;
+  const { endpoint, privateKey } = options;
 
   // Proxy every method call to inject the 402 payment before execution
   return new Proxy(model, {
@@ -42,13 +41,11 @@ export function wrapWith402<T extends object>(model: T, options: X402MiddlewareO
 
       return async function (...args: unknown[]) {
         // Step 1 — probe endpoint, execute payment if challenged
-        const payAndFetch = await getPayAndFetch();
-        const payRes = await payAndFetch(endpoint, {
+        const { payAndFetch, createSignerFromKey } = await getPayAndFetch();
+        const payRes = await payAndFetch(endpoint, { signer: createSignerFromKey(privateKey, options.chainId) }, {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-ai-sdk-probe': '1' },
           body: JSON.stringify({ probe: true }),
-          privateKey,
-          maxAmount: maxAmountUsdg,
         });
 
         // Verify gate was cleared
@@ -80,13 +77,11 @@ export async function payAndCall(
   url: string,
   options: { privateKey: `0x${string}`; maxAmountUsdg?: number; body?: unknown },
 ): Promise<unknown> {
-  const payAndFetch = await getPayAndFetch();
-  const res = await payAndFetch(url, {
+  const { payAndFetch, createSignerFromKey } = await getPayAndFetch();
+  const res = await payAndFetch(url, { signer: createSignerFromKey(options.privateKey) }, {
     method: options.body ? 'POST' : 'GET',
     headers: options.body ? { 'content-type': 'application/json' } : undefined,
     body: options.body ? JSON.stringify(options.body) : undefined,
-    privateKey: options.privateKey,
-    maxAmount: options.maxAmountUsdg ?? 0.1,
   });
   const text = await res.text();
   try { return JSON.parse(text); } catch { return text; }

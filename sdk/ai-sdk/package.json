@@ -19,6 +19,7 @@
     "ai": ">=4.0.0"
   },
   "dependencies": {
+    "@vergex402/core": "file:../core",
     "@vergex402/fetch": "^1.0.0"
   },
   "devDependencies": {

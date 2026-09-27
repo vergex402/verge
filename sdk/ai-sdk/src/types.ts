@@ -1,4 +1,5 @@
 // Shared types for @vergex402/ai-sdk
+import type { ChallengeStore, ReplayStore } from '@vergex402/core';
 
 export interface X402MiddlewareOptions {
   /** x402 endpoint URL to probe and pay (must return 402 with payment challenge) */
@@ -22,6 +23,10 @@ export interface X402GateOptions {
   facilitatorUrl?: string;
   /** Network id. Default: "robinhood-mainnet" */
   network?: string;
+  /** Process-local defaults are development/single-worker only; use a durable store in production. */
+  challengeStore?: ChallengeStore;
+  /** A durable AtomicReplayStore is claimed atomically when supplied. */
+  replayStore?: ReplayStore;
 }
 
 export interface SettlementProof {

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:api-body-limit": "node --experimental-strip-types --test tests/api-body-limit.test.mts"
   },
   "dependencies": {
     "@reown/appkit": "^1.8.24",
