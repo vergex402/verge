@@ -13,6 +13,7 @@ import Pricing from "@/components/Pricing";
 import WhyBase from "@/components/WhyBase";
 import ConnectCTA from "@/components/Waitlist";
 import LiveFeed from "@/components/LiveFeed";
+import SdkSection from "@/components/SdkSection";
 import Footer from "@/components/Footer";
 
 export default function Home() {
@@ -21,6 +22,7 @@ export default function Home() {
       <NavBar />
       <Hero />
       <CodeSnippet />
+      <SdkSection />
       <AgentCommerce />
       <Ecosystem />
       <CashbackRewards />
