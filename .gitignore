@@ -20,3 +20,16 @@ sdk/node_modules
 # Never commit local signup data
 .data/*.jsonl
 artifacts/
+
+# ZK build artifacts (regenerable; keep circuit source + verification key + docs)
+zk/build/settlement_batch_js/
+zk/build/circuit_final.zkey
+zk/build/circuit_final_v2.zkey
+zk/build/r1cs.json
+zk/build/settlement_batch.sym
+zk/pot12_final.ptau
+zk/proof/witness*.wtns
+zk/proof/input_bad.json
+zk/proof/witness_bad.wtns
+zk/node_modules/
+facilitator/node_modules/

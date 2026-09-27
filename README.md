@@ -329,9 +329,10 @@ CA: `0xb73b18267d23087e3af1390edfeb8c4308921d59` · [Buy on Pons](https://www.po
 - [x] Live settlement SSE feed (`/api/feed`)
 - [x] Security hardening — atomic replay guard, SSRF protection, rate limits, CSP
 - [x] Fastify adapter (`@vergex402/fastify`) — onRequest hook, Fastify v4 plugin
-- [x] Self-host binary — `Dockerfile` + `docker-compose.yml` + `scripts/setup.sh` + `docs/self-host.md`
+- [x] Self-host — full app (`Dockerfile` + compose) **and standalone facilitator binary** (`facilitator/`, ~40 MB Docker image, zero dependencies)
 - [x] Multi-chain analytics dashboard — settlement volume per rail, 7-chain grid view
-- [x] Merkle batch settlement proofs — POST /api/proofs + verify path; upgradeable to ZK (Q1 2027)
+- [x] Merkle batch settlement proofs — POST /api/proofs + verify path
+- [x] **ZK batch proofs** (`zk/`) — Groth16 circuit compiled, proven, verified; Solidity verifier generated (demo-grade; production needs public ptau ceremony + audit)
 
 ---
 
