@@ -14,6 +14,7 @@ Gate any endpoint behind a USDG micropayment. Settled on Robinhood Chain in ~400
 [![npm hono](https://img.shields.io/npm/v/@vergex402/hono?label=%40vergex402%2Fhono&style=flat-square&color=10b981)](https://www.npmjs.com/package/@vergex402/hono)
 [![npm fetch](https://img.shields.io/npm/v/@vergex402/fetch?label=%40vergex402%2Ffetch&style=flat-square&color=10b981)](https://www.npmjs.com/package/@vergex402/fetch)
 [![npm ai-sdk](https://img.shields.io/npm/v/@vergex402/ai-sdk?label=%40vergex402%2Fai-sdk&style=flat-square&color=10b981)](https://www.npmjs.com/package/@vergex402/ai-sdk)
+[![npm fastify](https://img.shields.io/npm/v/@vergex402/fastify?label=%40vergex402%2Ffastify&style=flat-square&color=10b981)](https://www.npmjs.com/package/@vergex402/fastify)
 [![Verify](https://github.com/vergex402/verge/actions/workflows/verify.yml/badge.svg)](https://github.com/vergex402/verge/actions/workflows/verify.yml)
 [![Stars](https://img.shields.io/github/stars/vergex402/verge?style=flat-square&logo=github&color=10b981)](https://github.com/vergex402/verge/stargazers)
 
@@ -48,7 +49,7 @@ Client (agent or browser)
 
 ## SDKs
 
-Five packages — every side of the payment:
+Six packages — every side of the payment:
 
 | Package | Role | Install |
 |---------|------|---------|
@@ -56,6 +57,7 @@ Five packages — every side of the payment:
 | [`@vergex402/hono`](./sdk/hono) | Hono adapter — edge-compatible paywall | `npm i @vergex402/hono` |
 | [`@vergex402/fetch`](./sdk/fetch) | Buyer SDK — `payAndFetch()` auto-pays 402 challenges | `npm i @vergex402/fetch` |
 | [`@vergex402/ai-sdk`](./sdk/ai-sdk) | **Vercel AI SDK v7** middleware — gate or pay AI routes | `npm i @vergex402/ai-sdk` |
+| [`@vergex402/fastify`](./sdk/fastify) | Fastify v4 plugin — x402 paywall for Fastify servers | `npm i @vergex402/fastify` |
 | [`@vergex402/core`](./sdk/core) | Shared verifier — CAIP-2, x402 v2 wire, facilitator | `npm i @vergex402/core` |
 
 ---
@@ -326,9 +328,9 @@ CA: `0xb73b18267d23087e3af1390edfeb8c4308921d59` · [Buy on Pons](https://www.po
 - [x] Sandbox mode — test without real USDG
 - [x] Live settlement SSE feed (`/api/feed`)
 - [x] Security hardening — atomic replay guard, SSRF protection, rate limits, CSP
-- [ ] Fastify adapter (Q4 2026)
-- [ ] Self-host facilitator binary (Q4 2026)
-- [ ] Multi-chain analytics unified across 7 rails (Q4 2026)
+- [x] Fastify adapter (`@vergex402/fastify`) — onRequest hook, Fastify v4 plugin
+- [x] Self-host binary — `Dockerfile` + `docker-compose.yml` + `scripts/setup.sh` + `docs/self-host.md`
+- [x] Multi-chain analytics dashboard — settlement volume per rail, 7-chain grid view
 - [ ] ZK batch settlement proofs (Q1 2027)
 
 ---

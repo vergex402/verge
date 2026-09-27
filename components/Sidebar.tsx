@@ -8,6 +8,7 @@ const groups = [
     { key: "Live Demo", label: "Live demo", icon: "flash" },
     { key: "Data Feeds", label: "Data feeds", icon: "network" },
     { key: "Transactions", label: "Transactions", icon: "transactions" },
+    { key: "Analytics", label: "Analytics", icon: "network" },
     { key: "Marketplace", label: "Marketplace", icon: "marketplace" },
     { key: "Receipts", label: "Receipts", icon: "receipts" },
     { key: "Invoices", label: "Invoices", icon: "receipts" },

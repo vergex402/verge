@@ -27,7 +27,8 @@ function getVergeTier(balance: bigint | undefined): VergeTier {
   if (b >= 10_000) return { name: "Builder", fee: "0.35%", discount: "–30%", color: "text-emerald-200/70", next: { name: "Pro", required: "50,000" } };
   return { name: "Free", fee: "0.50%", discount: "", color: "text-white/40", next: { name: "Builder", required: "10,000" } };
 }
-type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation" | "Splits";
+type Tab = "Overview" | "Live Demo" | "Data Feeds" | "Transactions" | "Analytics" | "Marketplace" | "Receipts" | "Invoices" | "API Keys" | "Webhooks" | "Domains" | "Sandbox" | "Networks" | "Wallets" | "Vault" | "Reputation" | "Splits";
+type ChainStat = { id: string; name: string; chainId: number; asset: string; txCount: number; volume: number; avgAmount: number; status: "live" | "available" };
 type Activity = { hash: string; block: number; amount: number; explorer: string; status?: string };
 type Listing = { id: string; name: string; url: string; price: number; asset?: string; network?: string; chainId?: number; healthStatus?: number; requestsCount?: number; paidCallsCount?: number; settlementVolume?: number; hostedSlug?: string; hostedTemplate?: string };
 type ApiKey = { id: string; createdAt: string; lastFour: string; revokedAt?: string | null; quotaLimit: number; usageCount: number; lastUsedAt?: string | null; label?: string; expiresAt?: string | null };
@@ -149,13 +150,14 @@ export default function WalletDashboard() {
   const [budgetMaxPerCall, setBudgetMaxPerCall] = useState("");
   const [budgetDailyBudget, setBudgetDailyBudget] = useState("");
   const [budgetDomains, setBudgetDomains] = useState("");
+  const [analyticsData, setAnalyticsData] = useState<{ chains: ChainStat[]; totalVolume: number; totalTx: number; dominantChain: string } | null>(null);
 
   const eth = useBalance({ address: addr, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const usdg = useReadContract({ address: USDG, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
   const vergeRaw = useReadContract({ address: VERGE_CA, abi: erc20Abi, functionName: "balanceOf", args: addr ? [addr] : undefined, chainId: 4663, query: { enabled: Boolean(addr) && onRobinhood } });
 
   useEffect(() => {
-    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Domains" && active !== "Invoices" && active !== "Sandbox" && active !== "Splits" && (!authorized || !onRobinhood)) return;
+    if (active !== "Marketplace" && active !== "Reputation" && active !== "Data Feeds" && active !== "Webhooks" && active !== "Domains" && active !== "Invoices" && active !== "Sandbox" && active !== "Splits" && active !== "Analytics" && (!authorized || !onRobinhood)) return;
     let cancelled = false;
     setActivityLoading(true); setActivityError("");
     const load = async () => {
@@ -184,6 +186,9 @@ export default function WalletDashboard() {
         } else if (active === "Splits") {
           const data = await getData("/api/splits");
           if (!cancelled) setSplits(data.splits || []);
+        } else if (active === "Analytics") {
+          const data = await getData("/api/analytics");
+          if (!cancelled) setAnalyticsData(data);
         } else if (active === "Sandbox") {
           const data = await getData("/api/sandbox");
           if (!cancelled) setSandboxEnabled(data.sandbox === true);
@@ -809,6 +814,51 @@ export default function WalletDashboard() {
       </>}
     </>;
 
+
+    if (active === "Analytics") {
+      const chainLogos: Record<string, string> = {
+        "robinhood-mainnet": "/logos/robinhood.jpg",
+        "ethereum-mainnet": "/chains/ethereum.png",
+        "base-mainnet": "/chains/base.png",
+        "arbitrum-mainnet": "/chains/arbitrum.png",
+        "polygon-mainnet": "/chains/polygon.svg",
+        "solana-mainnet": "/chains/solana.png",
+        "sui-mainnet": "/chains/sui.png",
+      };
+      return <>
+        <PageHeading eyebrow="MULTI-CHAIN" title="Analytics." description="Settlement volume and activity across all 7 payment rails. Robinhood Chain is live; other rails show availability status." />
+        {!authorized ? <TableEmpty title="Sign in to view analytics" description="Chain analytics are scoped to your wallet session." action={<button onClick={authorize} disabled={authBusy} className="rounded-xl bg-emerald-200 px-4 py-2.5 text-[11px] font-semibold text-[#08120d]">{authBusy ? "Waiting…" : "Sign in with wallet"}</button>}/> : <>
+          {activityLoading && !analyticsData ? <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading chain analytics…</div> : <>
+            {analyticsData && <section className="mb-5 grid gap-3 sm:grid-cols-3">
+              <StatCard label="Total Volume" value={`${analyticsData.totalVolume.toFixed(4)} USDG`} detail="Across all payment rails" icon="receipts"/>
+              <StatCard label="Total Settlements" value={String(analyticsData.totalTx)} detail="Confirmed payments" icon="transactions"/>
+              <StatCard label="Dominant Chain" value={analyticsData.chains.find(c => c.id === analyticsData.dominantChain)?.name ?? "—"} detail={analyticsData.dominantChain} icon="network"/>
+            </section>}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {(analyticsData?.chains ?? []).map((chain) => (
+                <article key={chain.id} className={`rounded-2xl border bg-[#141616] p-4 ${chain.id === "robinhood-mainnet" ? "border-emerald-300/25" : "border-white/[0.07]"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <img src={chainLogos[chain.id] ?? ""} alt="" className="size-7 rounded-lg object-contain border border-white/10"/>
+                      <div>
+                        <div className="text-[12px] font-medium text-white/85">{chain.name}</div>
+                        <span className="inline-block mt-0.5 rounded-md border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] text-white/50">{chain.asset}</span>
+                      </div>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wide ${chain.status === "live" ? "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-300" : "border-white/[0.08] bg-white/[0.02] text-white/30"}`}>{chain.status}</span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
+                    <div><div className="text-[9px] text-white/35">Settlements</div><div className="mt-1 text-sm font-medium text-white/80">{chain.txCount}</div></div>
+                    <div><div className="text-[9px] text-white/35">Volume</div><div className="mt-1 text-sm font-medium text-emerald-200">{chain.volume.toFixed(4)} {chain.asset}</div></div>
+                  </div>
+                  {chain.status === "available" && <div className="mt-3 rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2 text-[9px] text-white/25">Multi-chain settlement coming soon.</div>}
+                </article>
+              ))}
+            </div>
+          </>}
+        </>}
+      </>;
+    }
 
     if (active === "Reputation") return <>
       <PageHeading eyebrow="ON-CHAIN TRUST" title="Reputation." description="Scores derived only from settled payments through Verge's facilitator — anchored to verifiable transaction hashes, never self-reported."/>

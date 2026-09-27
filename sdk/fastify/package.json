@@ -1,0 +1,43 @@
+{
+  "name": "@vergex402/fastify",
+  "version": "1.0.0",
+  "description": "Fastify v4 plugin for HTTP 402 USDG micropayments on Robinhood Chain via Verge.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "x402",
+    "Robinhood",
+    "usdg",
+    "micropayments",
+    "ai-agents",
+    "fastify"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "fastify": ">=4.0.0"
+  },
+  "dependencies": {
+    "@vergex402/core": "file:../core/vergex402-core-0.5.0.tgz",
+    "fastify-plugin": "^4.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "fastify": "^4.0.0"
+  }
+}

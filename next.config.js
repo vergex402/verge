@@ -58,6 +58,7 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  output: "standalone",
   reactStrictMode: true,
   allowedDevOrigins: ["vergesnowy.com", "www.vergesnowy.com"],
   async headers() {

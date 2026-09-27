@@ -6,6 +6,7 @@ const items = [
   { key: "Overview", label: "Home", icon: "overview" },
   { key: "Live Demo", label: "Demo", icon: "flash" },
   { key: "Transactions", label: "Activity", icon: "transactions" },
+  { key: "Analytics", label: "Analytics", icon: "network" },
   { key: "Marketplace", label: "Market", icon: "marketplace" },
   { key: "Invoices", label: "Invoices", icon: "receipts" },
   { key: "Wallets", label: "Wallets", icon: "wallet" },
