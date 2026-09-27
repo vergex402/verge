@@ -5,7 +5,7 @@ const CSP = (nonce: string) => [
   "default-src 'self'",
   `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://unpkg.com https://cdn.jsdelivr.net`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
+  "font-src 'self' https://fonts.gstatic.com https://fonts.reown.com",
   "img-src 'self' data: https: blob:",
   "connect-src 'self' " + [
     "https://rpc.mainnet.chain.robinhood.com",
@@ -21,6 +21,8 @@ const CSP = (nonce: string) => [
     "wss://relay.walletconnect.org",
     "https://*.walletconnect.com",
     "https://*.walletconnect.org",
+    "https://api.web3modal.org",
+    "https://cca-lite.coinbase.com",
     "https://api.geckoterminal.com",
     "https://api.alternative.me",
     "https://api.coingecko.com",
