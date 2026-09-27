@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   const description = typeof body.description === "string" ? body.description.slice(0, 200).trim() : "";
   const amount = Number(body.amount);
-  if (!Number.isFinite(amount) || amount <= 0) return Response.json({ error: "Positive numeric amount required" }, { status: 400 });
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) return Response.json({ error: "Amount must be a positive number no greater than 1,000,000" }, { status: 400 });
 
   const network = (typeof body.network === "string" ? body.network : "robinhood-mainnet") as PaymentNetwork;
   try { getRail(network); } catch { return Response.json({ error: "Unsupported network" }, { status: 400 }); }
