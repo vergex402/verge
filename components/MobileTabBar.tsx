@@ -12,6 +12,7 @@ const items = [
   { key: "Vault", label: "Vault", icon: "key" },
   { key: "API Keys", label: "Keys", icon: "key" },
   { key: "Webhooks", label: "Hooks", icon: "network" },
+  { key: "Splits", label: "Splits", icon: "network" },
   { key: "Networks", label: "Rails", icon: "network" },
 ] as const;
 
