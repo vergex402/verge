@@ -20,6 +20,7 @@ const groups = [
   ]},
   { title: "REVENUE", items: [
     { key: "Splits", label: "Revenue splits", icon: "network" },
+    { key: "Batch Proofs", label: "Batch proofs", icon: "receipts" },
   ]},
   { title: "DEVELOPER", items: [
     { key: "API Keys", label: "API keys", icon: "key" },
