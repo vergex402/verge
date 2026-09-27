@@ -5,6 +5,7 @@
 
 import { createHmac } from "node:crypto";
 import { query } from "@/app/lib/db";
+import { assertPublicHttpUrl } from "@/app/lib/request-security";
 
 export type WebhookEvent = "payment.settled" | "endpoint.called";
 
@@ -54,7 +55,8 @@ async function fireOne(hook: WebhookRow, body: string): Promise<void> {
 
   let status = 0;
   try {
-    const res = await fetch(hook.url, {
+    const target = await assertPublicHttpUrl(hook.url);
+    const res = await fetch(target, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -63,6 +65,7 @@ async function fireOne(hook: WebhookRow, body: string): Promise<void> {
         "User-Agent": "Verge-Webhook/1.0",
       },
       body,
+      redirect: "manual",
       signal: controller.signal,
     });
     status = res.status;

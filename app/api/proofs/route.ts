@@ -52,7 +52,14 @@ function hashLeaf(row: {
   settled_at: string;
 }): string {
   const packed = `${row.id}:${(row.wallet || "").toLowerCase()}:${(row.payer_address || "").toLowerCase()}:${row.amount_usdg.toFixed(6)}:${row.settled_at}`;
-  return keccak256Hex(packed);
+  // Domain separation prevents a serialized leaf preimage from being treated
+  // as an internal node preimage (standard Merkle second-preimage mitigation).
+  return keccak256Hex(`leaf:${packed}`);
+}
+
+function hashNode(left: string, right: string): string {
+  const [a, b] = left < right ? [left, right] : [right, left];
+  return keccak256Hex(`node:${a}${b}`);
 }
 
 function buildMerkleTree(leaves: string[]): { root: string; tree: string[][] } {
@@ -67,9 +74,7 @@ function buildMerkleTree(leaves: string[]): { root: string; tree: string[][] } {
     for (let i = 0; i < current.length; i += 2) {
       const left = current[i];
       const right = current[i + 1] ?? left; // duplicate last if odd
-      // Sort pair so proof order doesn't matter (commutative)
-      const [a, b] = left < right ? [left, right] : [right, left];
-      next.push(keccak256Hex(a + b));
+      next.push(hashNode(left, right));
     }
     tree.push(next);
     current = next;
@@ -99,8 +104,7 @@ function verifyMerkleProof(
 ): boolean {
   let current = leaf;
   for (const sibling of proof) {
-    const [a, b] = current < sibling ? [current, sibling] : [sibling, current];
-    current = keccak256Hex(a + b);
+    current = hashNode(current, sibling);
   }
   return current === root;
 }

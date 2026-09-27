@@ -4,7 +4,8 @@
 
 import { NextRequest } from 'next/server';
 import { allowRateLimit } from '@/app/lib/db';
-import { rateLimitResponse, requestIp } from '@/app/lib/request-security';
+import { sessionAddress } from '@/app/lib/auth';
+import { assertPublicHttpUrl, hasOversizedBody, rateLimitResponse, requestIp } from '@/app/lib/request-security';
 
 export const runtime = 'nodejs';
 
@@ -45,9 +46,10 @@ async function callTool(name: string, args: Record<string, unknown>, req: NextRe
   const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://vergesnowy.com';
 
   if (name === 'inspect_endpoint') {
-    const url = String(args.url || '');
-    if (!url) throw new Error('url required');
-    const res = await fetch(url, { method: 'GET', headers: { 'User-Agent': 'Verge-MCP/1.0' }, signal: AbortSignal.timeout(8000) });
+    const rawUrl = String(args.url || '');
+    if (!rawUrl) throw new Error('url required');
+    const url = await assertPublicHttpUrl(rawUrl);
+    const res = await fetch(url, { method: 'GET', headers: { 'User-Agent': 'Verge-MCP/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(8000) });
     const headers: Record<string, string> = {};
     res.headers.forEach((v, k) => { headers[k] = v; });
     const paymentRequired = res.headers.get('payment-required');
@@ -118,6 +120,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (hasOversizedBody(req)) return Response.json({ error: { code: -32600, message: 'Request body exceeds 16 KB' } }, { status: 413 });
   if (!(await allowRateLimit(`mcp:${requestIp(req)}`, 60))) return rateLimitResponse();
 
   let body: { method?: string; params?: { name?: string; arguments?: Record<string, unknown> }; id?: unknown };
@@ -133,6 +136,16 @@ export async function POST(req: NextRequest) {
   if (body.method === 'tools/call') {
     const toolName = body.params?.name || '';
     const toolArgs = body.params?.arguments || {};
+
+    // Public MCP remains useful for read-only discovery. Any tool that writes
+    // a record must be bound to the caller's wallet-authenticated session.
+    if (toolName === 'create_invoice') {
+      const actor = await sessionAddress(req.cookies.get('verge_session')?.value);
+      const requestedWallet = String(toolArgs.wallet || '').toLowerCase();
+      if (!actor || actor.toLowerCase() !== requestedWallet) {
+        return Response.json({ id, error: { code: -32001, message: 'Wallet session required; invoice recipient must match the authenticated wallet' } }, { status: 401 });
+      }
+    }
     try {
       const result = await callTool(toolName, toolArgs, req);
       return Response.json({ id, result: { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] } });

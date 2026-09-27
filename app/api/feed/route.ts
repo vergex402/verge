@@ -30,6 +30,7 @@ type FeedEvent = {
 };
 
 const subscribers = new Set<(event: FeedEvent) => void>();
+const MAX_SSE_CONNECTIONS = 100;
 
 /** Called by the facilitator settle route to broadcast to all SSE clients. */
 export function broadcastSettlement(event: FeedEvent) {
@@ -39,6 +40,9 @@ export function broadcastSettlement(event: FeedEvent) {
 }
 
 export async function GET(req: NextRequest) {
+  if (subscribers.size >= MAX_SSE_CONNECTIONS) {
+    return Response.json({ error: "Live feed at capacity; retry shortly" }, { status: 503, headers: { "Retry-After": "15" } });
+  }
   if (!(await allowRateLimit(`feed:${requestIp(req)}`, 20))) return rateLimitResponse();
 
   const encoder = new TextEncoder();

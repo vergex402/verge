@@ -9,7 +9,7 @@ import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { query, queryOne, audit, allowRateLimit } from "@/app/lib/db";
 import { sessionAddress } from "@/app/lib/auth";
-import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
+import { assertPublicHttpUrl, rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -45,13 +45,11 @@ export async function POST(req: NextRequest) {
   if (!url || !/^https?:\/\//.test(url)) {
     return Response.json({ error: "Valid http/https URL required" }, { status: 400 });
   }
-  // SSRF guard: block private ranges in production
   try {
-    const u = new URL(url);
-    if (process.env.NODE_ENV === "production" && /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u.hostname)) {
-      return Response.json({ error: "Private URLs not allowed" }, { status: 400 });
-    }
-  } catch { return Response.json({ error: "Invalid URL" }, { status: 400 }); }
+    await assertPublicHttpUrl(url);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Invalid URL" }, { status: 400 });
+  }
 
   const events: string[] = Array.isArray(body.events)
     ? (body.events as string[]).filter((e) => VALID_EVENTS.includes(e as typeof VALID_EVENTS[number]))

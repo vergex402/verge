@@ -5,7 +5,7 @@
 
 import { NextRequest } from "next/server";
 import { allowRateLimit } from "@/app/lib/db";
-import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
+import { assertPublicHttpUrl, hasOversizedBody, rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -25,15 +25,10 @@ async function inspectUrl(rawUrl: string): Promise<WorkbenchResult> {
   // Validate URL
   let url: URL;
   try {
-    url = new URL(rawUrl);
-    if (!["http:", "https:"].includes(url.protocol)) throw new Error("Only http/https allowed");
-    // Block private ranges
-    const host = url.hostname;
-    if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) && process.env.NODE_ENV === "production") {
-      return { ok: false, cmd: `inspect ${rawUrl}`, output: "Error: private/loopback URLs are not allowed." };
-    }
-  } catch {
-    return { ok: false, cmd: `inspect ${rawUrl}`, output: `Error: invalid URL — ${rawUrl}` };
+    url = await assertPublicHttpUrl(rawUrl);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "invalid URL";
+    return { ok: false, cmd: `inspect ${rawUrl}`, output: `Error: ${reason}` };
   }
 
   const controller = new AbortController();
@@ -44,7 +39,7 @@ async function inspectUrl(rawUrl: string): Promise<WorkbenchResult> {
       method: "GET",
       headers: { "User-Agent": "Verge-Workbench/1.0" },
       signal: controller.signal,
-      redirect: "follow",
+      redirect: "manual",
     });
     clearTimeout(timeout);
 
@@ -128,6 +123,7 @@ Examples:
 }
 
 export async function POST(req: NextRequest) {
+  if (hasOversizedBody(req)) return Response.json({ ok: false, output: "Error: request body exceeds 16 KB." }, { status: 413 });
   if (!(await allowRateLimit(`workbench:${requestIp(req)}`, 60))) return rateLimitResponse();
 
   let body: { command?: string };

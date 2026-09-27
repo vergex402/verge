@@ -10,11 +10,17 @@ import { createHash, randomBytes, createCipheriv, createDecipheriv } from "node:
 import { query, queryOne } from "@/app/lib/db";
 
 function vaultKey(): Buffer {
-  const raw = process.env.VERGE_VAULT_KEY || createHash("sha256").update(process.env.DATABASE_URL || "verge-local").digest();
+  const raw = process.env.VERGE_VAULT_KEY;
+  if (!raw) {
+    // Never derive a production encryption key from another operational secret.
+    // Fail closed rather than silently making secret storage recoverable from a DB URL.
+    if (process.env.NODE_ENV === "production") throw new Error("VERGE_VAULT_KEY must be set in production");
+    return createHash("sha256").update("verge-development-only-vault-key").digest();
+  }
   return createHash("sha256").update(raw).digest();
 }
-if (!process.env.VERGE_VAULT_KEY) {
-  console.warn("[vault] VERGE_VAULT_KEY not set — encryption key derived from DATABASE_URL. Set VERGE_VAULT_KEY in production.");
+if (!process.env.VERGE_VAULT_KEY && process.env.NODE_ENV !== "production") {
+  console.warn("[vault] development-only fallback key in use; set VERGE_VAULT_KEY before deployment.");
 }
 
 const NAME_RE = /^[a-zA-Z0-9_.-]{1,64}$/;
