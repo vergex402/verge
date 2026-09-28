@@ -357,3 +357,18 @@ Run `npm run build` before submitting — CI checks the same.
 ## License
 
 MIT © 2026 Verge Labs · [vergesnowy.com](https://vergesnowy.com)
+
+---
+
+## v1.2 Security + Completeness
+
+Post-roadmap hardening pass (2 independent review cycles, 10 findings — all closed):
+
+- SSRF hardening on all outbound fetches (DNS-pinned connections, no redirect-follow)
+- Per-IP rate limits + challenge caps on the standalone facilitator
+- Merkle circuit `numLeaves` cryptographically binding (padding enforced in-circuit)
+- `eth_getLogs` range auto-shrink for public RPC limits; scan window surfaced in UI
+- Nonce-based CSP — no `unsafe-eval`, no inline scripts
+- 64 KB global API body limit
+- Self-payment reputation farming blocked
+- Durable store injection for AI SDK replay protection
