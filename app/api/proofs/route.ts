@@ -17,6 +17,7 @@ import { cookies } from "next/headers";
 import { query, queryOne, allowRateLimit } from "@/app/lib/db";
 import { sessionAddress } from "@/app/lib/auth";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
+import { publicAnchor, type AnchorRow } from "@/app/lib/proof-anchor";
 import { createHash } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -35,7 +36,11 @@ async function ensureProofSchema() {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS proof_batches_wallet_idx ON proof_batches(wallet, created_at DESC);
-  `);
+    ALTER TABLE proof_batches ADD COLUMN IF NOT EXISTS anchor_tx TEXT;
+    ALTER TABLE proof_batches ADD COLUMN IF NOT EXISTS anchor_wallet TEXT;
+    ALTER TABLE proof_batches ADD COLUMN IF NOT EXISTS anchor_chain_id INTEGER;
+    ALTER TABLE proof_batches ADD COLUMN IF NOT EXISTS anchored_at TIMESTAMPTZ;
+    `);
 }
 
 // ── Merkle helpers (pure Node, no external deps) ────────────────────────────
@@ -145,12 +150,16 @@ export async function GET(req: NextRequest) {
       `SELECT * FROM proof_batches ORDER BY created_at DESC LIMIT 1`
     );
     if (!row) return Response.json({ error: "No batches yet" }, { status: 404 });
+    const anchor = await queryOne<AnchorRow>(
+      `SELECT anchor_tx, anchor_wallet, anchor_chain_id, anchored_at FROM proof_batches WHERE id = $1`, [row.id]
+    );
     return Response.json({
       batchId: row.id,
       merkleRoot: row.merkle_root,
       leafCount: row.leaf_count,
       logRange: { first: row.first_log_id, last: row.last_log_id },
       createdAt: row.created_at,
+      anchor: publicAnchor(anchor ?? null),
     });
   }
 
@@ -204,6 +213,9 @@ export async function GET(req: NextRequest) {
       `SELECT * FROM proof_batches WHERE id=$1`, [batchId]
     );
     if (!row) return Response.json({ error: "Batch not found" }, { status: 404 });
+    const anchor = await queryOne<AnchorRow>(
+      `SELECT anchor_tx, anchor_wallet, anchor_chain_id, anchored_at FROM proof_batches WHERE id = $1`, [batchId]
+    );
     return Response.json({
       batchId: row.id,
       merkleRoot: row.merkle_root,
@@ -211,6 +223,7 @@ export async function GET(req: NextRequest) {
       logRange: { first: row.first_log_id, last: row.last_log_id },
       wallet: row.wallet,
       createdAt: row.created_at,
+      anchor: publicAnchor(anchor ?? null),
     });
   }
 

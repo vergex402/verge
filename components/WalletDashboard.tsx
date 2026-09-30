@@ -148,7 +148,7 @@ export default function WalletDashboard() {
   const [newSplitRecipient, setNewSplitRecipient] = useState("");
   const [newSplitBps, setNewSplitBps] = useState("1000");
   const [newSplitLabel, setNewSplitLabel] = useState("");
-  type BatchProofRow = { id: string; merkle_root: string; leaf_count: number; first_log_id: string; last_log_id: string; created_at: string };
+  type BatchProofRow = { id: string; merkle_root: string; leaf_count: number; first_log_id: string; last_log_id: string; created_at: string; anchor?: { tx: string; explorerUrl: string; anchoredAt: string } | null };
   const [batchProofs, setBatchProofs] = useState<BatchProofRow[]>([]);
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchNotice, setBatchNotice] = useState("");
@@ -926,16 +926,19 @@ export default function WalletDashboard() {
         {activityLoading && <div className="rounded-2xl border border-white/[0.07] bg-[#141616] p-8 text-center text-xs text-white/35">Loading batches…</div>}
         {!activityLoading && batchProofs.length === 0 && <TableEmpty title="No batches yet" description="Click Generate to commit your settlements into a tamper-evident Merkle root."/>}
         {batchProofs.length > 0 && <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141616]">
-          <div className="hidden grid-cols-[auto_1fr_60px_60px_100px] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid">
-            <span>Batch ID</span><span>Merkle root</span><span>Leaves</span><span>Range</span><span>Created</span>
+          <div className="hidden grid-cols-[auto_1fr_60px_60px_120px] gap-3 border-b border-white/[0.07] px-5 py-3 text-[9px] uppercase tracking-[0.12em] text-white/30 md:grid">
+            <span>Batch ID</span><span>Merkle root</span><span>Leaves</span><span>Range</span><span>Anchor</span>
           </div>
           <div className="divide-y divide-white/[0.05]">
-            {batchProofs.map(b => <div key={b.id} className="grid gap-2 px-4 py-4 md:grid-cols-[auto_1fr_60px_60px_100px] md:items-center md:px-5">
+            {batchProofs.map(b => <div key={b.id} className="grid gap-2 px-4 py-4 md:grid-cols-[auto_1fr_60px_60px_120px] md:items-center md:px-5">
               <span className="font-mono text-[10px] text-white/60 shrink-0">{b.id}</span>
               <span className="font-mono text-[10px] text-emerald-300/80 truncate">{b.merkle_root}</span>
               <span className="font-mono text-xs text-white/50">{b.leaf_count}</span>
               <span className="font-mono text-[10px] text-white/35">{b.first_log_id}–{b.last_log_id}</span>
-              <a href={`/api/proofs?batch=${b.id}`} target="_blank" rel="noopener" className="rounded-lg border border-white/[0.08] px-2 py-1 text-[10px] text-white/40 hover:text-white transition-colors text-center">Inspect ↗</a>
+              <span className="flex flex-col gap-1">{b.anchor?.tx
+                ? <a href={b.anchor.explorerUrl} target="_blank" rel="noopener" className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.06] px-2 py-1 text-[9px] text-emerald-300 transition hover:bg-emerald-300/[0.12] text-center">⛓ anchored ↗</a>
+                : <span className="rounded-lg border border-white/[0.08] px-2 py-1 text-[9px] text-white/30 text-center">not anchored</span>}
+              </span>
             </div>)}
           </div>
           <div className="border-t border-white/[0.07] px-5 py-3 text-[10px] text-white/30 font-mono">
