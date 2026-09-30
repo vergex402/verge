@@ -14,6 +14,7 @@ test("maps persisted settlements into privacy-safe feed events", () => {
 
   assert.deepEqual(events, [{
     id: "42",
+    receiptUrl: null,
     amountUsdg: 0.125,
     network: "robinhood-mainnet",
     endpointName: "market-data",

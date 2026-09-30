@@ -4,6 +4,7 @@
 // Accepts { x402Version, paymentPayload, paymentRequirements }.
 
 import { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { settleX402Payment, humanAmount, networkFromCaip2, getRail, type X402PaymentPayload, type X402PaymentRequirements } from "@vergex402/core";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
 import { allowRateLimit } from "@/app/lib/db";
@@ -52,8 +53,9 @@ export async function POST(req: NextRequest) {
     const amountUsdg = humanAmount(result.amount ?? body.paymentRequirements.amount, decimals);
     const recipient = ((body.paymentRequirements as unknown) as Record<string, unknown>).recipient as string | undefined ?? null;
     if (recipient) {
-      const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg) VALUES ($1,$2,$3) RETURNING id`, [recipient, result.payer, amountUsdg]);
-      broadcastSettlement({ id: String(payment.id), amountUsdg, network: body.paymentRequirements.network, endpointName: null, truncatedPayer: `${result.payer.slice(0, 6)}…${result.payer.slice(-4)}`, settledAt: new Date().toISOString() });
+      const publicId = `rcpt_${randomUUID().replaceAll("-", "")}`;
+      const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, public_id, tx_hash, network, asset, resource_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [recipient, result.payer, amountUsdg, publicId, result.transaction || null, body.paymentRequirements.network, "USDG", "Facilitated payment"]);
+      broadcastSettlement({ id: String(payment.id), receiptUrl: `/receipt/${publicId}`, amountUsdg, network: body.paymentRequirements.network, endpointName: null, truncatedPayer: `${result.payer.slice(0, 6)}…${result.payer.slice(-4)}`, settledAt: new Date().toISOString() });
     }
     if (recipient) void fireWebhooks(recipient, "payment.settled", {
       type: "facilitator", payer: result.payer, amount: amountUsdg,

@@ -5,6 +5,7 @@
 // the publisher never has to run their own server.
 
 import { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { decodePaymentSignature, evaluatePayment, extractProof, type PaymentNetwork } from "@vergex402/core";
 import { queryOne, query } from "@/app/lib/db";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
@@ -74,8 +75,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   try {
     const data = await template.fetchData();
     await query(`UPDATE endpoints SET paid_calls_count = paid_calls_count + 1, settlement_volume = settlement_volume + $2 WHERE id = $1`, [row.id, row.priceUsdg]);
-    const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id) VALUES ($1,$2,$3,$4) RETURNING id`, [row.wallet, outcome.payer || null, row.priceUsdg, row.id]);
-    broadcastSettlement({ id: String(payment.id), amountUsdg: row.priceUsdg, network: row.network, endpointName: row.name, truncatedPayer: outcome.payer ? `${outcome.payer.slice(0, 6)}…${outcome.payer.slice(-4)}` : null, settledAt: new Date().toISOString() });
+    const publicId = `rcpt_${randomUUID().replaceAll("-", "")}`;
+    const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id, public_id, tx_hash, network, asset, resource_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [row.wallet, outcome.payer || null, row.priceUsdg, row.id, publicId, outcome.tx || null, row.network, "USDG", row.name]);
+    broadcastSettlement({ id: String(payment.id), receiptUrl: `/receipt/${publicId}`, amountUsdg: row.priceUsdg, network: row.network, endpointName: row.name, truncatedPayer: outcome.payer ? `${outcome.payer.slice(0, 6)}…${outcome.payer.slice(-4)}` : null, settledAt: new Date().toISOString() });
     if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: row.priceUsdg, resource: row.hostedTemplate || row.name, txHash: outcome.tx, recipient: row.wallet });
     void fireWebhooks(row.wallet, "payment.settled", {
       type: "endpoint", endpointId: row.id, slug, name: row.name,

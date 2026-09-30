@@ -7,6 +7,7 @@ import { verifyEndpointUrl } from "@/app/lib/endpoint-health";
 import { getRail, railChainId, type PaymentNetwork } from "@vergex402/core";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 import { HOSTED_TEMPLATES } from "@/app/lib/hosted-templates";
+import { filterMarketplace } from "@/app/lib/marketplace-discovery";
 
 export const runtime = "nodejs";
 
@@ -15,15 +16,20 @@ async function owner() {
   return sessionAddress(jar.get("verge_session")?.value);
 }
 
-export async function GET() {
-  const endpoints = await query(`SELECT id, name, url, price_usdg as price, description, wallet,
+export async function GET(req: NextRequest) {
+  const endpoints = await query(`SELECT id, name, url, price_usdg as price, description,
     health_status as "healthStatus", payment_required as "paymentRequired", checked_at as "checkedAt",
     payment_network as network, payment_asset as asset, payment_chain_id as "chainId",
     requests_count as "requestsCount", paid_calls_count as "paidCallsCount", settlement_volume as "settlementVolume",
     hosted_slug as "hostedSlug", hosted_template as "hostedTemplate",
     created_at as "createdAt" FROM endpoints WHERE revoked_at IS NULL AND (health_status IN (200, 401, 402) OR hosted_slug IS NOT NULL)
     ORDER BY created_at DESC LIMIT 100`);
-  return Response.json({ network: { chainId: 4663, asset: "USDG" }, endpoints }, { headers: { "Cache-Control": "public, max-age=60" } });
+  const q = req.nextUrl.searchParams.get("q");
+  const network = req.nextUrl.searchParams.get("network");
+  const rawMaxPrice = req.nextUrl.searchParams.get("maxPrice");
+  const maxPrice = rawMaxPrice === null ? null : Number(rawMaxPrice);
+  if (rawMaxPrice !== null && (!Number.isFinite(maxPrice) || (maxPrice !== null && maxPrice < 0))) return Response.json({ error: "maxPrice must be a non-negative number" }, { status: 400 });
+  return Response.json({ network: { chainId: 4663, asset: "USDG" }, endpoints: filterMarketplace(endpoints as never[], { q, network, maxPrice: maxPrice ?? null }) }, { headers: { "Cache-Control": "public, max-age=60" } });
 }
 
 export async function POST(req: NextRequest) {

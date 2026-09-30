@@ -1,5 +1,6 @@
 export type FeedEvent = {
   id: string;
+  receiptUrl: string | null;
   amountUsdg: number;
   network: string;
   endpointName: string | null;
@@ -8,6 +9,7 @@ export type FeedEvent = {
 };
 
 type PersistedSettlement = {
+  public_id?: string | null;
   id: number | string;
   amount_usdg: number;
   payment_network: string | null;
@@ -19,6 +21,7 @@ type PersistedSettlement = {
 export function toFeedEvents(rows: PersistedSettlement[]): FeedEvent[] {
   return rows.map((row) => ({
     id: String(row.id),
+    receiptUrl: row.public_id && /^rcpt_[a-f0-9]{32}$/.test(row.public_id) ? `/receipt/${row.public_id}` : null,
     amountUsdg: Number(row.amount_usdg),
     network: row.payment_network || "robinhood-mainnet",
     endpointName: row.endpoint_name,

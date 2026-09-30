@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { sessionAddress } from "@/app/lib/auth";
 import { query, queryOne } from "@/app/lib/db";
+import { summarizeMerchantAnalytics } from "@/app/lib/merchant-analytics";
 
 export const runtime = "nodejs";
 
@@ -69,6 +70,8 @@ export async function GET() {
     FROM payments_log WHERE wallet = $1
   `, [wallet]);
 
+  const endpointRows = await query<{ id: string; name: string; "requestsCount": number; "paidCallsCount": number; "settlementVolume": number }>(`SELECT id, name, requests_count as "requestsCount", paid_calls_count as "paidCallsCount", settlement_volume as "settlementVolume" FROM endpoints WHERE wallet = $1 AND revoked_at IS NULL`, [wallet]);
+
   return Response.json({
     wallet,
     metrics: Object.fromEntries(Object.entries(metrics).map(([k, v]) => [k, Number(v)])),
@@ -79,6 +82,7 @@ export async function GET() {
       conversionRate,
       avgPayment: Number(Number(avgRow?.avgPayment ?? 0).toFixed(6)),
     },
+    endpointPerformance: summarizeMerchantAnalytics(endpointRows),
     dailyChart,
   });
 }

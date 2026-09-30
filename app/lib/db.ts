@@ -136,6 +136,12 @@ export function ensureSchema(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS payments_log_wallet_idx ON payments_log(wallet, settled_at DESC);
       CREATE INDEX IF NOT EXISTS payments_log_payer_idx ON payments_log(payer_address);
+      ALTER TABLE payments_log ADD COLUMN IF NOT EXISTS public_id TEXT UNIQUE;
+      ALTER TABLE payments_log ADD COLUMN IF NOT EXISTS tx_hash TEXT;
+      ALTER TABLE payments_log ADD COLUMN IF NOT EXISTS network TEXT;
+      ALTER TABLE payments_log ADD COLUMN IF NOT EXISTS asset TEXT;
+      ALTER TABLE payments_log ADD COLUMN IF NOT EXISTS resource_name TEXT;
+      CREATE INDEX IF NOT EXISTS payments_log_public_id_idx ON payments_log(public_id);
 
       -- API key enhancements: label + expiry
       ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS label TEXT NOT NULL DEFAULT '';
@@ -157,6 +163,18 @@ export function ensureSchema(): Promise<void> {
         fail_count INTEGER NOT NULL DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS webhooks_wallet_idx ON webhooks(wallet);
+      CREATE TABLE IF NOT EXISTS webhook_deliveries (
+        id BIGSERIAL PRIMARY KEY,
+        webhook_id TEXT NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+        wallet TEXT NOT NULL,
+        event TEXT NOT NULL,
+        payload JSONB NOT NULL,
+        status INTEGER NOT NULL DEFAULT 0,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        delivered_at TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS webhook_deliveries_owner_idx ON webhook_deliveries(wallet, created_at DESC);
 
       -- Invoices: single-use shareable payment links
       CREATE TABLE IF NOT EXISTS invoices (

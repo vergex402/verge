@@ -3,6 +3,7 @@
 // POST /api/invoice/[id]/settle — called by /pay/[id] after on-chain payment.
 
 import { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { queryOne, query, allowRateLimit } from "@/app/lib/db";
 import { fireWebhooks } from "@/app/lib/webhooks";
 import { evaluatePayment, extractProof, decodePaymentSignature, type PaymentNetwork } from "@vergex402/core";
@@ -100,9 +101,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     `UPDATE invoices SET status = 'paid', paid_at = $1, payer_address = $2, tx_hash = $3 WHERE id = $4 AND status = 'pending'`,
     [now, outcome.payer || null, outcome.tx || null, id]
   );
-  const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id) VALUES ($1,$2,$3,$4) RETURNING id`,
-    [inv.wallet, outcome.payer || null, inv.amountUsdg, id]);
-  broadcastSettlement({ id: String(payment.id), amountUsdg: inv.amountUsdg, network: inv.network, endpointName: `Invoice ${id}`, truncatedPayer: outcome.payer ? `${outcome.payer.slice(0, 6)}…${outcome.payer.slice(-4)}` : null, settledAt: now });
+  const publicId = `rcpt_${randomUUID().replaceAll("-", "")}`;
+  const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id, public_id, tx_hash, network, asset, resource_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    [inv.wallet, outcome.payer || null, inv.amountUsdg, id, publicId, outcome.tx || null, inv.network, "USDG", inv.description || `Invoice ${id}`]);
+  broadcastSettlement({ id: String(payment.id), receiptUrl: `/receipt/${publicId}`, amountUsdg: inv.amountUsdg, network: inv.network, endpointName: `Invoice ${id}`, truncatedPayer: outcome.payer ? `${outcome.payer.slice(0, 6)}…${outcome.payer.slice(-4)}` : null, settledAt: now });
 
   void fireWebhooks(inv.wallet, "payment.settled", {
     type: "invoice", invoiceId: id, amount: inv.amountUsdg, network: inv.network,

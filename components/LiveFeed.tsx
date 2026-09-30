@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 interface Settlement {
   id?: string;
+  receiptUrl?: string | null;
   amountUsdg: number;
   network: string;
   endpointName: string | null;
@@ -123,9 +124,7 @@ export default function LiveFeed() {
                   {i === 0 && live && (
                     <span className="size-1.5 shrink-0 rounded-full bg-emerald-400 animate-ping" />
                   )}
-                  <span className="truncate font-mono text-[11px] text-white/70">
-                    {ev.endpointName ?? (ev.truncatedPayer ? `${ev.truncatedPayer}` : "—")}
-                  </span>
+                  {ev.receiptUrl ? <a href={ev.receiptUrl} className="truncate font-mono text-[11px] text-emerald-300/90 hover:text-emerald-200" aria-label="View verified settlement receipt">{ev.endpointName ?? (ev.truncatedPayer || "Receipt")}</a> : <span className="truncate font-mono text-[11px] text-white/70">{ev.endpointName ?? (ev.truncatedPayer || "—")}</span>}
                 </div>
                 <span className="font-mono text-[11px] font-semibold text-emerald-300/90">
                   {ev.amountUsdg < 0.001 ? ev.amountUsdg.toFixed(6) : ev.amountUsdg.toFixed(4)}

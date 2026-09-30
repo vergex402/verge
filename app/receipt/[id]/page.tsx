@@ -1,0 +1,10 @@
+type Params = { params: Promise<{ id: string }> };
+
+export default async function ReceiptPage({ params }: Params) {
+  const { id } = await params;
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "https://vergesnowy.com";
+  const response = await fetch(`${base}/api/receipts/${id}`, { next: { revalidate: 60 } });
+  if (!response.ok) return <main className="min-h-screen bg-[#171719] text-white grid place-items-center p-6"><section className="max-w-md text-center"><h1 className="text-2xl">Receipt not found</h1><p className="text-gray-400 mt-3">This settlement receipt is unavailable.</p></section></main>;
+  const receipt = await response.json() as { id: string; amount: number; asset: string; network: string; resource: string | null; payer: string | null; recipient: string; settledAt: string; explorerUrl: string | null };
+  return <main className="min-h-screen bg-[#171719] text-white grid place-items-center p-6"><article className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/[.03] p-7"><p className="font-mono text-xs tracking-widest text-emerald-400">VERIFIED SETTLEMENT</p><h1 className="mt-3 text-3xl">{receipt.amount} {receipt.asset}</h1><dl className="mt-7 space-y-3 text-sm"><div className="flex justify-between gap-4"><dt className="text-gray-500">Resource</dt><dd>{receipt.resource || "Payment"}</dd></div><div className="flex justify-between gap-4"><dt className="text-gray-500">Network</dt><dd>{receipt.network}</dd></div><div className="flex justify-between gap-4"><dt className="text-gray-500">Payer</dt><dd>{receipt.payer || "Private"}</dd></div><div className="flex justify-between gap-4"><dt className="text-gray-500">Recipient</dt><dd>{receipt.recipient}</dd></div><div className="flex justify-between gap-4"><dt className="text-gray-500">Settled</dt><dd>{new Date(receipt.settledAt).toLocaleString()}</dd></div></dl>{receipt.explorerUrl && <a className="mt-7 inline-block text-sm text-emerald-400 hover:text-emerald-300" href={receipt.explorerUrl} target="_blank" rel="noreferrer">View transaction ↗</a>}</article></main>;
+}

@@ -39,12 +39,13 @@ export async function GET(req: NextRequest) {
 
   const history = toFeedEvents(await query<{
     id: number;
+    public_id: string | null;
     amount_usdg: number;
     payment_network: string | null;
     endpoint_name: string | null;
     payer_address: string | null;
     settled_at: string;
-  }>(`SELECT p.id, p.amount_usdg, e.payment_network, e.name AS endpoint_name, p.payer_address, p.settled_at
+  }>(`SELECT p.id, p.public_id, p.amount_usdg, e.payment_network, e.name AS endpoint_name, p.payer_address, p.settled_at
       FROM payments_log p
       LEFT JOIN endpoints e ON e.id = p.endpoint_id
       ORDER BY p.settled_at DESC
@@ -56,6 +57,8 @@ export async function GET(req: NextRequest) {
     start(controller) {
       // Send heartbeat comment every 25s to keep connection alive
       let heartbeat: ReturnType<typeof setInterval> | null = null;
+      let poll: ReturnType<typeof setInterval> | null = null;
+      let lastSeenId = Math.max(0, ...history.map((event) => Number(event.id) || 0));
 
       const send = (event: FeedEvent) => {
         try {
@@ -69,10 +72,19 @@ export async function GET(req: NextRequest) {
       const cleanup = () => {
         subscribers.delete(send);
         if (heartbeat) clearInterval(heartbeat);
+        if (poll) clearInterval(poll);
       };
 
       subscribers.add(send);
       controller.enqueue(encoder.encode(`event: history\ndata: ${JSON.stringify(history)}\n\n`));
+      // Poll the durable Postgres log so another service instance's settlement
+      // reaches this stream even when it has a different in-memory subscriber set.
+      poll = setInterval(() => { void (async () => {
+        try {
+          const rows = await query<{ id: number; public_id: string | null; amount_usdg: number; payment_network: string | null; endpoint_name: string | null; payer_address: string | null; settled_at: string }>(`SELECT p.id, p.public_id, p.amount_usdg, e.payment_network, e.name AS endpoint_name, p.payer_address, p.settled_at FROM payments_log p LEFT JOIN endpoints e ON e.id = p.endpoint_id WHERE p.id > $1 ORDER BY p.id ASC LIMIT 25`, [lastSeenId]);
+          for (const event of toFeedEvents(rows)) { lastSeenId = Math.max(lastSeenId, Number(event.id)); send(event); }
+        } catch { /* a later poll recovers from a transient database error */ }
+      })(); }, 3000);
 
       heartbeat = setInterval(() => {
         try {
