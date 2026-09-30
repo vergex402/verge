@@ -289,10 +289,9 @@ html, body {
 }
 
 /* ── Workspace light theme ──
- * Strategy: keep the dark sidebar/nav chrome (branded look) and flip the main
- * content canvas to a soft, low-glare paper surface. High-emphasis text stays
- * near-ink (#1c2b24); muted text stops at #5c6b63 — never lighter than that,
- * so small labels keep WCAG-safe contrast on white cards.
+ * Strategy: full paper flip. The shell, sidebar and canvas all go light
+ * (user explicitly rejected the half-dark hybrid). Cards stay white on a soft
+ * sage canvas; text is ink #1c2b24, muted text never lighter than #516058.
  */
 .theme-light {
   background: #eef2ef !important;
@@ -302,6 +301,9 @@ html, body {
 .theme-light.bg-\[\#0d0f0e\] { background-color: #eef2ef !important; }
 .theme-light .bg-\[\#0d0f0e\],
 .theme-light .bg-\[\#0e100f\] { background-color: #eef2ef !important; }
+/* THE core rule: every dark-theme white text becomes ink in light mode.
+ * Scoped overrides below only darken/shade further — never back to white. */
+.theme-light [class*="text-white"] { color: #1c2b24 !important; }
 /* Cards & nested surfaces: white, with soft borders */
 .theme-light [class*="bg-[#101112"],
 .theme-light [class*="bg-[#111312"],
@@ -324,32 +326,36 @@ html, body {
 .theme-light [class*="bg-white/[0.1"] {
   background-color: rgba(28, 43, 36, 0.035) !important;
 }
-/* Keep the dark sidebar, mobile bar, and workbench chrome dark & readable */
+/* ── Light theme: full flip (sidebar included) ──
+ * In light mode the whole shell goes paper: sidebar becomes a white panel with
+ * ink text, main canvas soft sage #eef2ef, cards stay white. No half-dark
+ * hybrid — the user explicitly rejected the dark sidebar in light mode. */
 .theme-light aside.bg-\[\#0d0e10\],
-.theme-light nav.bg-\[\#101112\]\/95 { background-color: #0d0e10 !important; }
-.theme-light [class*="bg-[#1B2824"],
-.theme-light [class*="bg-[#12231F"] { background-color: #1b2824 !important; }
-/* Text: high emphasis near-ink; muted scale pinned to readable greens-grays */
-.theme-light [class*="text-white"]:not(aside *):not(nav *) { color: #1c2b24 !important; }
-.theme-light aside [class*="text-white"] { color: #f2f7f4 !important; }
+.theme-light nav.bg-\[\#101112\]\/95 { background-color: #ffffff !important; }
+.theme-light [class*="bg-[#0c0e0d]/95"],
+.theme-light [class*="bg-[#111312]/95"],
+.theme-light [class*="bg-[#101112]/95"],
+.theme-light [class*="bg-[#0c0e0d]/95"] { background-color: #f6f9f7 !important; }
+/* Sidebar text: ink scale, readable at every opacity step */
+.theme-light aside [class*="text-white"] { color: #22322a !important; }
 .theme-light aside [class*="text-white/2"],
-.theme-light aside [class*="text-white/3"] { color: #8fa199 !important; }
+.theme-light aside [class*="text-white/3"] { color: #6b7a72 !important; }
 .theme-light aside [class*="text-white/4"],
-.theme-light aside [class*="text-white/5"] { color: #a8b5ae !important; }
-.theme-light [class*="text-white/2"],
-.theme-light [class*="text-white/3"],
-.theme-light [class*="text-white/4"] { color: #5c6b63 !important; }
-.theme-light [class*="text-white/5"],
-.theme-light [class*="text-white/6"] { color: #516058 !important; }
-.theme-light [class*="text-white/7"],
-.theme-light [class*="text-white/8"],
-.theme-light [class*="text-white/9"] { color: #22322a !important; }
-.theme-light [class*="border-white"]:not(aside *):not(nav *) { border-color: #dbe4de !important; }
-.theme-light aside [class*="border-white"] { border-color: rgba(255,255,255,0.09) !important; }
-.theme-light [class*="divide-white"] { border-color: #e3eae6 !important; }
+.theme-light aside [class*="text-white/5"] { color: #516058 !important; }
+.theme-light aside [class*="text-white/6"],
+.theme-light aside [class*="text-white/7"],
+.theme-light aside [class*="text-white/8"],
+.theme-light aside [class*="text-white/9"] { color: #22322a !important; }
+.theme-light aside [class*="border-white"] { border-color: #dbe4de !important; }
+.theme-light aside [class*="bg-white/"] { background-color: rgba(28, 43, 36, 0.04) !important; }
+/* Active nav item: mint wash + deep green, keeps the accent bar */
+.theme-light aside .text-emerald-200,
+.theme-light aside [class*="text-emerald-3"] { color: #067a4e !important; }
+.theme-light aside [class*="bg-emerald-300/"] { background-color: rgba(6, 122, 78, 0.10) !important; }
+/* Sidebar logo image border & wordmark */
+.theme-light aside img { border-color: #dbe4de !important; }
 /* Sticky header: translucent paper, not stark white */
 .theme-light [class*="bg-[#0d0f0e]/90"] { background-color: rgba(238,242,239,0.92) !important; }
-/* Emerald accents: darker, saturated greens that pass on light surfaces */
 /* Emerald accents: darker, saturated greens that pass on light surfaces.
  * Attribute-selectors cover every alpha step (e.g. text-emerald-200/55). */
 .theme-light [class*="text-emerald-1"],
