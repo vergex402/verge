@@ -11,14 +11,6 @@ interface Settlement {
   settledAt: string;
 }
 
-// Demo/fallback events shown before the SSE stream has any events
-const DEMO_EVENTS: Settlement[] = [
-  { amountUsdg: 0.001, network: "robinhood-mainnet", endpointName: "crypto-price", truncatedPayer: "0x7f3a…9c12", settledAt: new Date(Date.now() - 4000).toISOString() },
-  { amountUsdg: 0.005, network: "robinhood-mainnet", endpointName: "signals", truncatedPayer: "0xd18e…44ab", settledAt: new Date(Date.now() - 12000).toISOString() },
-  { amountUsdg: 0.001, network: "base-mainnet", endpointName: null, truncatedPayer: "0xa92f…1de3", settledAt: new Date(Date.now() - 27000).toISOString() },
-  { amountUsdg: 0.002, network: "robinhood-mainnet", endpointName: "whale-alerts", truncatedPayer: "0x3bc1…88f7", settledAt: new Date(Date.now() - 55000).toISOString() },
-  { amountUsdg: 0.001, network: "robinhood-mainnet", endpointName: "news", truncatedPayer: "0xe40d…22c9", settledAt: new Date(Date.now() - 90000).toISOString() },
-];
 
 function timeAgo(iso: string) {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -42,7 +34,7 @@ function NetworkPill({ network }: { network: string }) {
 }
 
 export default function LiveFeed() {
-  const [events, setEvents] = useState<Settlement[]>(DEMO_EVENTS);
+  const [events, setEvents] = useState<Settlement[]>([]);
   const [live, setLive] = useState(false);
   const [totalToday, setTotalToday] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
@@ -116,7 +108,11 @@ export default function LiveFeed() {
           </div>
 
           <ul ref={listRef} className="divide-y divide-white/[0.04] max-h-72 overflow-y-auto scrollbar-none">
-            {events.map((ev, i) => (
+            {events.length === 0 ? (
+              <li className="px-4 py-8 text-center font-mono text-[10px] text-white/30">
+                {live ? "Connected — waiting for the next verified settlement." : "Connecting to verified settlement stream…"}
+              </li>
+            ) : events.map((ev, i) => (
               <li key={ev.id ?? `${ev.settledAt}-${i}`}
                 className={`grid grid-cols-[1fr_80px_100px_70px] gap-0 px-4 py-3 transition-colors ${i === 0 && live ? "bg-emerald-400/[0.04]" : ""}`}>
                 <div className="flex items-center gap-2 min-w-0">
