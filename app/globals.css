@@ -288,43 +288,90 @@ html, body {
   .grain-overlay, .vignette, .scanlines, .cyber-grid { display: none; }
 }
 
-/* ── Workspace light theme ── */
+/* ── Workspace light theme ──
+ * Strategy: keep the dark sidebar/nav chrome (branded look) and flip the main
+ * content canvas to a soft, low-glare paper surface. High-emphasis text stays
+ * near-ink (#1c2b24); muted text stops at #5c6b63 — never lighter than that,
+ * so small labels keep WCAG-safe contrast on white cards.
+ */
 .theme-light {
-  background: #f4f7f5 !important;
-  color: #15231d !important;
+  background: #eef2ef !important;
+  color: #1c2b24 !important;
 }
-.theme-light [class*="bg-[#0d0f0e"],
+/* Page canvas: the app shell itself becomes the paper surface */
+.theme-light.bg-\[\#0d0f0e\] { background-color: #eef2ef !important; }
+.theme-light .bg-\[\#0d0f0e\],
+.theme-light .bg-\[\#0e100f\] { background-color: #eef2ef !important; }
+/* Cards & nested surfaces: white, with soft borders */
 .theme-light [class*="bg-[#101112"],
 .theme-light [class*="bg-[#111312"],
 .theme-light [class*="bg-[#141616"],
 .theme-light [class*="bg-[#171719"],
 .theme-light [class*="bg-[#1a1c1b"],
 .theme-light [class*="bg-[#1B1B1C"],
-.theme-light [class*="bg-black\/"],
-.theme-light [class*="bg-white\/\[0.0"],
-.theme-light [class*="bg-white\/\[0.1"] {
+.theme-light [class*="bg-[#131315"],
+.theme-light [class*="bg-[#101211"],
+.theme-light [class*="bg-[#1a1b1d"],
+.theme-light [class*="bg-[#222224"],
+.theme-light [class*="bg-[#0f1110"],
+.theme-light [class*="bg-[#0b0d0c"],
+.theme-light [class*="bg-[#0c0e0d"],
+.theme-light [class*="bg-black/"] {
   background-color: #ffffff !important;
 }
-.theme-light [class*="text-white"] { color: #20332a !important; }
-.theme-light [class*="text-white\/30"],
-.theme-light [class*="text-white\/35"],
-.theme-light [class*="text-white\/40"],
-.theme-light [class*="text-white\/45"],
-.theme-light [class*="text-white\/50"],
-.theme-light [class*="text-white\/55"],
-.theme-light [class*="text-white\/60"],
-.theme-light [class*="text-white\/65"],
-.theme-light [class*="text-white\/70"] { color: #64746c !important; }
-.theme-light [class*="border-white"] { border-color: #dce6e0 !important; }
-.theme-light [class*="divide-white"] { border-color: #e5ece8 !important; }
-.theme-light [class*="bg-\[#0d0f0e\]\/90"] { background-color: rgba(255,255,255,.92) !important; }
+/* Subtle white-alpha fills become barely-there green tints instead of white */
+.theme-light [class*="bg-white/[0.0"],
+.theme-light [class*="bg-white/[0.1"] {
+  background-color: rgba(28, 43, 36, 0.035) !important;
+}
+/* Keep the dark sidebar, mobile bar, and workbench chrome dark & readable */
+.theme-light aside.bg-\[\#0d0e10\],
+.theme-light nav.bg-\[\#101112\]\/95 { background-color: #0d0e10 !important; }
+.theme-light [class*="bg-[#1B2824"],
+.theme-light [class*="bg-[#12231F"] { background-color: #1b2824 !important; }
+/* Text: high emphasis near-ink; muted scale pinned to readable greens-grays */
+.theme-light [class*="text-white"]:not(aside *):not(nav *) { color: #1c2b24 !important; }
+.theme-light aside [class*="text-white"] { color: #f2f7f4 !important; }
+.theme-light aside [class*="text-white/2"],
+.theme-light aside [class*="text-white/3"] { color: #8fa199 !important; }
+.theme-light aside [class*="text-white/4"],
+.theme-light aside [class*="text-white/5"] { color: #a8b5ae !important; }
+.theme-light [class*="text-white/2"],
+.theme-light [class*="text-white/3"],
+.theme-light [class*="text-white/4"] { color: #5c6b63 !important; }
+.theme-light [class*="text-white/5"],
+.theme-light [class*="text-white/6"] { color: #516058 !important; }
+.theme-light [class*="text-white/7"],
+.theme-light [class*="text-white/8"],
+.theme-light [class*="text-white/9"] { color: #22322a !important; }
+.theme-light [class*="border-white"]:not(aside *):not(nav *) { border-color: #dbe4de !important; }
+.theme-light aside [class*="border-white"] { border-color: rgba(255,255,255,0.09) !important; }
+.theme-light [class*="divide-white"] { border-color: #e3eae6 !important; }
+/* Sticky header: translucent paper, not stark white */
+.theme-light [class*="bg-[#0d0f0e]/90"] { background-color: rgba(238,242,239,0.92) !important; }
+/* Emerald accents: darker, saturated greens that pass on light surfaces */
+/* Emerald accents: darker, saturated greens that pass on light surfaces.
+ * Attribute-selectors cover every alpha step (e.g. text-emerald-200/55). */
+.theme-light [class*="text-emerald-1"],
+.theme-light [class*="text-emerald-2"],
+.theme-light [class*="text-emerald-3"],
+.theme-light [class*="text-emerald-4"] { color: #067a4e !important; }
+.theme-light .bg-emerald-200 { background-color: #d3f1e2 !important; }
+.theme-light .bg-emerald-300 { background-color: #bcead4 !important; }
+.theme-light [class*="text-rose-1"],
+.theme-light [class*="text-rose-2"],
+.theme-light [class*="text-rose-3"] { color: #b4233c !important; }
+.theme-light [class*="text-amber-1"],
+.theme-light [class*="text-amber-2"],
+.theme-light [class*="text-amber-3"] { color: #8a5a06 !important; }
+/* Hero pill inside the light-mode gradient banner: its dark-theme ink (emerald
+ * -100/70 on black/10) turns ghost-white here — pin readable ink-on-mint. */
+.theme-light [class*="text-emerald-100/"] { color: #0a5c3c !important; }
+.theme-light .border-emerald-200\/15 { border-color: rgba(6, 122, 78, 0.30) !important; }
+.theme-light .border-emerald-300\/20 { border-color: rgba(6, 122, 78, 0.30) !important; }
+.theme-light .text-\[\#08120d\] { color: #0a231a !important; }
 .theme-light input,
 .theme-light select,
-.theme-light textarea { color: #20332a !important; background-color: #f7faf8 !important; border-color: #d5e2da !important; }
-.theme-light input::placeholder { color: #93a39a !important; }
-.theme-light kbd { color: #64746c !important; border-color: #dce6e0 !important; }
-.theme-light .text-emerald-200,
-.theme-light .text-emerald-300,
-.theme-light .text-emerald-400 { color: #087f55 !important; }
-.theme-light .bg-emerald-200 { background-color: #a7f3d0 !important; }
-.theme-light .text-\[\#08120d\] { color: #06281b !important; }
+.theme-light textarea { color: #1c2b24 !important; background-color: #f6f9f7 !important; border-color: #cfdcd4 !important; }
+.theme-light input::placeholder { color: #7e8d85 !important; }
+.theme-light kbd { color: #516058 !important; border-color: #dbe4de !important; }
