@@ -11,7 +11,8 @@
 //   es.addEventListener("settlement", e => console.log(JSON.parse(e.data)));
 
 import { NextRequest } from "next/server";
-import { allowRateLimit } from "@/app/lib/db";
+import { allowRateLimit, query } from "@/app/lib/db";
+import { type FeedEvent, toFeedEvents } from "@/app/lib/feed-events";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 
 export const runtime = "nodejs";
@@ -20,15 +21,6 @@ export const dynamic = "force-dynamic";
 
 // In-memory broadcast bus — works per-worker process
 // In multi-process environments, use Redis pub/sub instead
-type FeedEvent = {
-  id: string;
-  amountUsdg: number;
-  network: string;
-  endpointName: string | null;
-  truncatedPayer: string | null; // first 6 + last 4 chars, no full address
-  settledAt: string;
-};
-
 const subscribers = new Set<(event: FeedEvent) => void>();
 const MAX_SSE_CONNECTIONS = 100;
 
@@ -44,6 +36,19 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Live feed at capacity; retry shortly" }, { status: 503, headers: { "Retry-After": "15" } });
   }
   if (!(await allowRateLimit(`feed:${requestIp(req)}`, 20))) return rateLimitResponse();
+
+  const history = toFeedEvents(await query<{
+    id: number;
+    amount_usdg: number;
+    payment_network: string | null;
+    endpoint_name: string | null;
+    payer_address: string | null;
+    settled_at: string;
+  }>(`SELECT p.id, p.amount_usdg, e.payment_network, e.name AS endpoint_name, p.payer_address, p.settled_at
+      FROM payments_log p
+      LEFT JOIN endpoints e ON e.id = p.endpoint_id
+      ORDER BY p.settled_at DESC
+      LIMIT 25`));
 
   const encoder = new TextEncoder();
 
@@ -67,6 +72,7 @@ export async function GET(req: NextRequest) {
       };
 
       subscribers.add(send);
+      controller.enqueue(encoder.encode(`event: history\ndata: ${JSON.stringify(history)}\n\n`));
 
       heartbeat = setInterval(() => {
         try {

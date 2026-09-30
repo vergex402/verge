@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "node --experimental-strip-types --test tests/*.test.mts",
     "test:api-body-limit": "node --experimental-strip-types --test tests/api-body-limit.test.mts"
   },
   "dependencies": {

@@ -8,6 +8,7 @@ import { fireWebhooks } from "@/app/lib/webhooks";
 import { evaluatePayment, extractProof, decodePaymentSignature, type PaymentNetwork } from "@vergex402/core";
 import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
+import { broadcastSettlement } from "@/app/api/feed/route";
 
 export const runtime = "nodejs";
 
@@ -99,8 +100,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     `UPDATE invoices SET status = 'paid', paid_at = $1, payer_address = $2, tx_hash = $3 WHERE id = $4 AND status = 'pending'`,
     [now, outcome.payer || null, outcome.tx || null, id]
   );
-  await query(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id) VALUES ($1,$2,$3,$4)`,
+  const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id) VALUES ($1,$2,$3,$4) RETURNING id`,
     [inv.wallet, outcome.payer || null, inv.amountUsdg, id]);
+  broadcastSettlement({ id: String(payment.id), amountUsdg: inv.amountUsdg, network: inv.network, endpointName: `Invoice ${id}`, truncatedPayer: outcome.payer ? `${outcome.payer.slice(0, 6)}…${outcome.payer.slice(-4)}` : null, settledAt: now });
 
   void fireWebhooks(inv.wallet, "payment.settled", {
     type: "invoice", invoiceId: id, amount: inv.amountUsdg, network: inv.network,

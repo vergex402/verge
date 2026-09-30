@@ -11,6 +11,7 @@ import { pgChallengeStore, pgReplayStore } from "@/app/lib/x402-stores";
 import { HOSTED_TEMPLATES } from "@/app/lib/hosted-templates";
 import { recordSettlement } from "@/app/lib/reputation";
 import { fireWebhooks } from "@/app/lib/webhooks";
+import { broadcastSettlement } from "@/app/api/feed/route";
 
 function publicOrigin(req: NextRequest): string {
   const xfHost = req.headers.get("x-forwarded-host");
@@ -73,7 +74,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   try {
     const data = await template.fetchData();
     await query(`UPDATE endpoints SET paid_calls_count = paid_calls_count + 1, settlement_volume = settlement_volume + $2 WHERE id = $1`, [row.id, row.priceUsdg]);
-    await query(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id) VALUES ($1,$2,$3,$4)`, [row.wallet, outcome.payer || null, row.priceUsdg, row.id]);
+    const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id) VALUES ($1,$2,$3,$4) RETURNING id`, [row.wallet, outcome.payer || null, row.priceUsdg, row.id]);
+    broadcastSettlement({ id: String(payment.id), amountUsdg: row.priceUsdg, network: row.network, endpointName: row.name, truncatedPayer: outcome.payer ? `${outcome.payer.slice(0, 6)}…${outcome.payer.slice(-4)}` : null, settledAt: new Date().toISOString() });
     if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: row.priceUsdg, resource: row.hostedTemplate || row.name, txHash: outcome.tx, recipient: row.wallet });
     void fireWebhooks(row.wallet, "payment.settled", {
       type: "endpoint", endpointId: row.id, slug, name: row.name,

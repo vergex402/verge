@@ -47,6 +47,10 @@ export default function LiveFeed() {
       try {
         es = new EventSource("/api/feed");
         es.addEventListener("connected", () => { if (alive) setLive(true); });
+        es.addEventListener("history", (e) => {
+          if (!alive) return;
+          try { setEvents(JSON.parse(e.data) as Settlement[]); } catch { /* ignore */ }
+        });
         es.addEventListener("settlement", (e) => {
           if (!alive) return;
           try {

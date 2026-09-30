@@ -11,6 +11,7 @@ import { query } from "@/app/lib/db";
 import { rateLimitResponse, requestIp } from "@/app/lib/request-security";
 import { recordSettlement } from "@/app/lib/reputation";
 import { fireWebhooks } from "@/app/lib/webhooks";
+import { broadcastSettlement } from "@/app/api/feed/route";
 
 export const runtime = "nodejs";
 
@@ -50,7 +51,10 @@ export async function POST(req: NextRequest) {
     const decimals = network ? getRail(network).decimals : 6;
     const amountUsdg = humanAmount(result.amount ?? body.paymentRequirements.amount, decimals);
     const recipient = ((body.paymentRequirements as unknown) as Record<string, unknown>).recipient as string | undefined ?? null;
-    if (recipient) void query(`INSERT INTO payments_log(wallet, payer_address, amount_usdg) VALUES ($1,$2,$3)`, [recipient, result.payer, amountUsdg]);
+    if (recipient) {
+      const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg) VALUES ($1,$2,$3) RETURNING id`, [recipient, result.payer, amountUsdg]);
+      broadcastSettlement({ id: String(payment.id), amountUsdg, network: body.paymentRequirements.network, endpointName: null, truncatedPayer: `${result.payer.slice(0, 6)}…${result.payer.slice(-4)}`, settledAt: new Date().toISOString() });
+    }
     if (recipient) void fireWebhooks(recipient, "payment.settled", {
       type: "facilitator", payer: result.payer, amount: amountUsdg,
       network: body.paymentRequirements.network, tx: result.transaction,
