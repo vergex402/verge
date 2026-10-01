@@ -72,12 +72,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   if (outcome.kind === "error") return Response.json({ error: "Payment verifier unavailable", code: "TX_RPC_ERROR", detail: outcome.detail }, { status: 503 });
 
   // outcome.kind === "unlocked" — settlement verified onchain. Serve the real upstream payload.
+  // Persist the settlement FIRST: an upstream outage must never lose the payer's
+  // receipt (verified funds are already taken at this point).
+  const publicId = `rcpt_${randomUUID().replaceAll("-", "")}`;
+  let paymentId: string;
   try {
-    const data = await template.fetchData();
     await query(`UPDATE endpoints SET paid_calls_count = paid_calls_count + 1, settlement_volume = settlement_volume + $2 WHERE id = $1`, [row.id, row.priceUsdg]);
-    const publicId = `rcpt_${randomUUID().replaceAll("-", "")}`;
     const [payment] = await query<{ id: number }>(`INSERT INTO payments_log(wallet, payer_address, amount_usdg, endpoint_id, public_id, tx_hash, network, asset, resource_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [row.wallet, outcome.payer || null, row.priceUsdg, row.id, publicId, outcome.tx || null, row.network, "USDG", row.name]);
-    broadcastSettlement({ id: String(payment.id), receiptUrl: `/receipt/${publicId}`, amountUsdg: row.priceUsdg, network: row.network, endpointName: row.name, truncatedPayer: outcome.payer ? `${outcome.payer.slice(0, 6)}…${outcome.payer.slice(-4)}` : null, settledAt: new Date().toISOString() });
+    paymentId = String(payment.id);
+    broadcastSettlement({ id: paymentId, receiptUrl: `/receipt/${publicId}`, amountUsdg: row.priceUsdg, network: row.network, endpointName: row.name, truncatedPayer: outcome.payer ? `${outcome.payer.slice(0, 6)}…${outcome.payer.slice(-4)}` : null, settledAt: new Date().toISOString() });
     if (outcome.payer) void recordSettlement(outcome.payer, { valueUsdg: row.priceUsdg, resource: row.hostedTemplate || row.name, txHash: outcome.tx, recipient: row.wallet });
     void fireWebhooks(row.wallet, "payment.settled", {
       type: "endpoint", endpointId: row.id, slug, name: row.name,
@@ -86,8 +89,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     void fireWebhooks(row.wallet, "endpoint.called", {
       endpointId: row.id, slug, name: row.name, paid: true, payer: outcome.payer,
     });
-    return Response.json({ ok: true, endpoint: row.name, settled: true, tx, nonce, data }, { headers: { "X-Settlement-Verified": "true" } });
-  } catch (error) {
-    return Response.json({ error: "Upstream data source unavailable", detail: String(error instanceof Error ? error.message : error) }, { status: 502 });
+  } catch (ledgerError) {
+    console.error("[verge] settlement ledger failure:", ledgerError);
+    return Response.json({ error: "Settlement recorded but ledger unavailable", code: "LEDGER_ERROR", tx: outcome.tx }, { status: 500 });
+  }
+  try {
+    const data = await template.fetchData();
+    return Response.json({ ok: true, endpoint: row.name, settled: true, tx, nonce, receiptUrl: `/receipt/${publicId}`, data }, { headers: { "X-Settlement-Verified": "true" } });
+  } catch (upstreamError) {
+    // Payment verified + recorded; the free good will is a retryable request.
+    return Response.json({
+      error: "Upstream data source unavailable — your settlement is recorded and the payload is owed.",
+      code: "UPSTREAM_UNAVAILABLE",
+      settled: true, tx: outcome.tx, receiptUrl: `/receipt/${publicId}`,
+      detail: String(upstreamError instanceof Error ? upstreamError.message : upstreamError).slice(0, 200),
+    }, { status: 503, headers: { "X-Settlement-Verified": "true", "Retry-After": "60" } });
   }
 }
