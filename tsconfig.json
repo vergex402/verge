@@ -39,6 +39,7 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
+    "facilitator",
     "node_modules",
     "sdk"
   ]
