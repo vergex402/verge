@@ -20,11 +20,15 @@ jobs:
           cache: npm
       - name: Install app dependencies
         run: npm ci
+      - name: Unit tests
+        run: npm test
       - name: Build app
         env:
           # Build only needs a syntactically valid URL; route data is dynamic at runtime.
           DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/postgres
         run: npm run build
+      - name: Dependency audit (high+)
+        run: npm audit --omit=dev --audit-level=high
       - name: Build SDKs
         run: |
           npm ci --prefix sdk/core

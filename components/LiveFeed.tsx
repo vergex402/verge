@@ -138,9 +138,84 @@ export default function LiveFeed() {
         </div>
 
         <p className="mt-4 text-center font-mono text-[10px] text-white/20">
-          Payer addresses truncated for privacy · amounts and endpoints are real-time
+          Payer addresses truncated for privacy · every row links to a signed settlement receipt
         </p>
+
+        {/* Proof pipeline strip */}
+        <div className="mt-10 grid gap-3 md:grid-cols-4">
+          {[
+            { step: "01", title: "Agent pays", body: "Exact USDG transfer on-chain — no account, no API key." },
+            { step: "02", title: "Verge verifies", body: "Settlement read straight from the chain before the payload unlocks." },
+            { step: "03", title: "Receipt issued", body: "Every payment gets a public receipt with its transaction hash." },
+            { step: "04", title: "Root anchored", body: "Merkle roots are committed on-chain — Verge can't rewrite history." },
+          ].map(item => (
+            <div key={item.step} className="rounded-2xl border border-white/[0.06] bg-[#111312] p-4">
+              <div className="font-mono text-[9px] tracking-[0.18em] text-emerald-300/50">{item.step}</div>
+              <div className="mt-2 text-sm font-medium text-white/85">{item.title}</div>
+              <p className="mt-1.5 text-[11px] leading-5 text-white/40">{item.body}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Live proof anchor card */}
+        <LatestAnchor />
       </div>
     </section>
+  );
+}
+
+type Anchor = { tx: string; chainId: number; anchoredAt: string; explorerUrl: string } | null;
+type LatestBatch = { batchId: string; merkleRoot: string; leafCount: number; anchor: Anchor };
+
+function LatestAnchor() {
+  const [batch, setBatch] = useState<LatestBatch | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch("/api/proofs?latest=true", { headers: { accept: "application/json" } })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d: LatestBatch) => { if (alive) { setBatch(d); setFailed(false); } })
+        .catch(() => { if (alive) setFailed(true); });
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  if (failed) return null;
+
+  return (
+    <div className="mt-6 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.035] p-5">
+      <div className="flex items-center gap-2">
+        <span className="size-1.5 rounded-full bg-emerald-400" />
+        <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-emerald-300/60">Latest proof anchor · on-chain</span>
+      </div>
+      {!batch ? (
+        <p className="mt-3 font-mono text-[10px] text-white/30">Loading latest anchored batch…</p>
+      ) : (
+        <>
+          <div className="mt-3 grid gap-2 font-mono text-[10px] text-white/50 sm:grid-cols-[auto_1fr] sm:gap-x-4">
+            <span className="text-white/30">Batch</span><span className="break-all text-white/70">{batch.batchId}</span>
+            <span className="text-white/30">Merkle root</span><span className="break-all text-white/70">{batch.merkleRoot}</span>
+            <span className="text-white/30">Settlements</span><span className="text-white/70">{batch.leafCount}</span>
+            <span className="text-white/30">Anchor tx</span>
+            <span className="break-all">
+              {batch.anchor ? (
+                <a href={batch.anchor.explorerUrl} target="_blank" rel="noreferrer" className="text-emerald-300/90 hover:text-emerald-200">
+                  {batch.anchor.tx} ↗
+                </a>
+              ) : (
+                <span className="text-white/40">queued for next anchor commit</span>
+              )}
+            </span>
+          </div>
+          <p className="mt-3 text-[10px] leading-5 text-white/30">
+            Anyone can recompute this Merkle root from public receipts and check it against the on-chain payload — no trust in Verge required.
+          </p>
+        </>
+      )}
+    </div>
   );
 }
