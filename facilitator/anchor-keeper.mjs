@@ -46,8 +46,8 @@ async function anchorBatch(batch) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(root)) throw new Error(`bad merkle root: ${batch.merkleRoot}`);
   const data = toHex(new TextEncoder().encode(`verge-proof-anchor:${batch.batchId}:${root}`));
   const gasPrice = await publicClient.getGasPrice();
-  const safeGas = (gasPrice * 150n) / 100n; // 50% headroom — RH gas price jumps between sign & send
-  const hash = await walletClient.sendTransaction({ data, gasPrice: safeGas, gas: 60_000n });
+  const safeGas = gasPrice > 100000000n ? (gasPrice * 150n) / 100n : 100000000n;
+  const hash = await walletClient.sendTransaction({ to: account.address, data, gasPrice: safeGas, gas: 200_000n });
   console.log(`[${batch.batchId}] anchor tx broadcast: ${hash}`);
   const receipt = await publicClient.waitForTransactionReceipt({ hash, timeoutMs: 90_000 });
   if (receipt.status !== "success") throw new Error(`anchor tx reverted: ${hash}`);

@@ -55,7 +55,11 @@ export async function POST(req: NextRequest) {
 
   const txData = await fetchTx(tx);
   if (!txData) return Response.json({ error: "Anchor tx not found on-chain yet" }, { status: 409 });
-  if (!txData.input.includes(merkleRoot.replace(/^0x/i, ""))) {
+  // tx.input is hex-encoded calldata; decode to UTF-8 before checking the payload.
+  const expectedPayload = `verge-proof-anchor:${batchId}:0x${merkleRoot.replace(/^0x/i, "")}`.toLowerCase();
+  let decoded = "";
+  try { decoded = Buffer.from(txData.input.slice(2), "hex").toString("utf8").toLowerCase(); } catch { /* fallthrough */ }
+  if (!decoded.includes(expectedPayload)) {
     return Response.json({ error: "Tx calldata does not commit this merkle root" }, { status: 409 });
   }
 
