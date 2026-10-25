@@ -10,6 +10,7 @@ import {
   http,
   encodeFunctionData,
   parseAbi,
+  parseUnits,
   type WalletClient,
   type PublicClient,
   type Chain,
@@ -28,11 +29,11 @@ export const ROBINHOOD_CHAIN: Chain = {
   name: 'Robinhood Chain',
   nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://rpc.robinhoodchain.com'] },
-    public: { http: ['https://rpc.robinhoodchain.com'] },
+    default: { http: ['https://rpc.mainnet.chain.robinhood.com'] },
+    public: { http: ['https://rpc.mainnet.chain.robinhood.com'] },
   },
   blockExplorers: {
-    default: { name: 'Robinhood Explorer', url: 'https://explorer.robinhoodchain.com' },
+    default: { name: 'Robinhood Chain Explorer', url: 'https://robinhoodchain.blockscout.com' },
   },
 };
 
@@ -74,6 +75,9 @@ export interface PaymentPayload {
     value: string;
     nonce: string;
     asset: Address;
+    /** Settlement transaction hash, where @vergex402/core reads it. */
+    tx: Hash;
+    /** Same hash under its earlier name, kept for existing readers. */
     txHash: Hash;
   };
 }
@@ -166,9 +170,13 @@ function parsePaymentRequired(header: string): X402Challenge {
   const network = offer['network'] as string | undefined;
   const scheme = (offer['scheme'] as string | undefined) ?? 'exact';
   const amount = String(offer['amount'] ?? offer['maxAmount'] ?? '0');
-  const recipient = offer['recipient'] as Address | undefined;
+  // x402 v2 names the recipient `payTo`; `recipient` is the earlier name.
+  const recipient = (offer['payTo'] ?? offer['recipient']) as Address | undefined;
   const asset = (offer['asset'] as Address | undefined) ?? USDG_CONTRACT;
-  const nonce = String(offer['nonce'] ?? parsed['nonce'] ?? '');
+  // @vergex402/core carries the challenge nonce in accepts[0].extra.nonce (and extensions["x-verge"].info.nonce).
+  const extra = (offer['extra'] ?? {}) as Record<string, unknown>;
+  const vergeExt = ((parsed['extensions'] as Record<string, { info?: { nonce?: unknown } }> | undefined)?.['x-verge']?.info) ?? {};
+  const nonce = String(extra['nonce'] ?? offer['nonce'] ?? vergeExt.nonce ?? parsed['nonce'] ?? '');
 
   if (!network) throw new Error('PAYMENT-REQUIRED: missing network in accepts[0]');
   if (!recipient) throw new Error('PAYMENT-REQUIRED: missing recipient in accepts[0]');
@@ -239,6 +247,7 @@ function buildPaymentSignatureHeader(
       value: challenge.amount,
       nonce: challenge.nonce,
       asset: challenge.asset,
+      tx: txHash,
       txHash,
     },
   };
@@ -295,10 +304,11 @@ export async function payAndFetch(
     if (lastResponse.status !== 402) return lastResponse;
 
     // --- Handle 402 ---
-    const paymentRequiredHeader = lastResponse.headers.get('payment-required');
-    const wwwAuthenticate = lastResponse.headers.get('www-authenticate');
-
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Answer the challenge of the latest 402: core issues a new nonce with each challenge.
+      const paymentRequiredHeader = lastResponse.headers.get('payment-required');
+      const wwwAuthenticate = lastResponse.headers.get('www-authenticate');
+
       // --- x402 v2: PAYMENT-REQUIRED header ---
       if (paymentRequiredHeader) {
         const challenge = parsePaymentRequired(paymentRequiredHeader);
@@ -358,7 +368,8 @@ export async function payAndFetch(
         const legacyRecipient = (lastResponse.headers.get('x-pay-recipient') ?? account.address) as Address;
         const legacyAsset = (lastResponse.headers.get('x-pay-asset') ?? USDG_CONTRACT) as Address;
 
-        const amount = BigInt(legacyAmount);
+        // X-Pay-Amount is in token units ("0.001"); every Verge rail is a 6-decimal stablecoin.
+        const amount = parseUnits(legacyAmount, 6);
         const data = buildTransferData(legacyRecipient, amount);
 
         const txHash = await signer.sendTransaction({
